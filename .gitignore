@@ -1,0 +1,15 @@
+# Quartus generated files
+Firmware (DE2)/db/
+Firmware (DE2)/incremental_db/
+Firmware (DE2)/output_files/
+
+# Quartus temporary/workspace files
+*.qws
+*.rdr.flock
+
+# Backup/temp files
+*.bak
+~$*
+
+# Arduino generated files
+**/build/
