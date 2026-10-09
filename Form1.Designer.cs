@@ -64,6 +64,7 @@
             this.lblReceive = new System.Windows.Forms.Label();
             this.lblSend = new System.Windows.Forms.Label();
             this.serialPort1 = new System.IO.Ports.SerialPort(this.components);
+            this.btnReset = new System.Windows.Forms.Button();
             this.grpConnection.SuspendLayout();
             this.grpPPG.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.chartPPG)).BeginInit();
@@ -224,6 +225,7 @@
             // 
             // grpMetrics
             // 
+            this.grpMetrics.Controls.Add(this.btnReset);
             this.grpMetrics.Controls.Add(this.btnExport);
             this.grpMetrics.Controls.Add(this.btnStop);
             this.grpMetrics.Controls.Add(this.btnStart);
@@ -437,6 +439,16 @@
             // 
             this.serialPort1.DataReceived += new System.IO.Ports.SerialDataReceivedEventHandler(this.SerialPort_DataReceived);
             // 
+            // btnReset
+            // 
+            this.btnReset.Location = new System.Drawing.Point(178, 68);
+            this.btnReset.Name = "btnReset";
+            this.btnReset.Size = new System.Drawing.Size(75, 28);
+            this.btnReset.TabIndex = 7;
+            this.btnReset.Text = "Reset";
+            this.btnReset.UseVisualStyleBackColor = true;
+            this.btnReset.Click += new System.EventHandler(this.btnReset_Click);
+            // 
             // form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
@@ -499,6 +511,7 @@
         private System.Windows.Forms.Label lblReceive;
         private System.Windows.Forms.Label lblSend;
         private System.IO.Ports.SerialPort serialPort1;
+        private System.Windows.Forms.Button btnReset;
     }
 }
 

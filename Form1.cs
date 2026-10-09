@@ -60,6 +60,7 @@ namespace MAX30102_GUI
             btnStop.Enabled = false;
             btnTest.Enabled = false;
             btnExport.Enabled = false;
+            btnReset.Enabled = false;
         }
         private void btnConnect_Click(object sender, EventArgs e)
         {
@@ -99,6 +100,7 @@ namespace MAX30102_GUI
                 btnDisconnect.Enabled = true;     // Enable nút Disconnect
                 btnStart.Enabled = true;          // Enable nút Start
                 btnTest.Enabled = true;           // Enable nút Test
+                btnReset.Enabled = true;
                 btnExport.Enabled = true;         // Enable nút Export
                 cboPort.Enabled = false;       // Khóa chọn COM khi đang kết nối
                 cboBaudRate.Enabled = false;
@@ -129,6 +131,7 @@ namespace MAX30102_GUI
                 btnStart.Enabled = false;        // Tắt nút Start
                 if (btnStop != null) btnStop.Enabled = false;
                 btnTest.Enabled = false;         // Tắt nút Test
+                btnReset.Enabled = false;
 
                 // 4. Mở lại các ô chọn cổng COM/BaudRate
                 cboPort.Enabled = true;
@@ -257,36 +260,26 @@ namespace MAX30102_GUI
         }
         private void btnStart_Click(object sender, EventArgs e)
         {
-            // Gửi lệnh Start: Ký tự '1' (Mã Hex: 0x31)
+            // Kịch bản B: lệnh Start, ký tự '1' (0x31)
             SendCommand('1');
 
-            // Quản lý nút bấm: Đang đo thì tắt nút Start và nút Reset, mở nút Stop
+            chartPPG.Series[0].Points.Clear();   // đồ thị vẽ lại từ đầu
+
             btnStart.Enabled = false;
             btnStop.Enabled = true;
+            btnReset.Enabled = false;
             if (btnExport != null) btnExport.Enabled = false;
-
-            // Nếu có tạo nút btnReset thì uncomment dòng dưới
-            // btnReset.Enabled = false; 
         }
         private void btnStop_Click(object sender, EventArgs e)
         {
-            // Gửi lệnh Stop: Ký tự '0' (Mã Hex: 0x30)
+            // Kịch bản B: lệnh Stop, ký tự '0' (0x30)
             SendCommand('0');
 
-            // Quản lý nút bấm: Dừng đo thì mở lại Start, Reset và Export
             btnStart.Enabled = true;
             btnStop.Enabled = false;
-            if (btnExport != null) btnExport.Enabled = true; // Có dữ liệu mới cho Export
-
-            // Nếu có tạo nút btnReset thì uncomment dòng dưới
-            // btnReset.Enabled = true;
+            btnReset.Enabled = true;
+            if (btnExport != null) btnExport.Enabled = true;
         }
-        //private void btnReset_Click(object sender, EventArgs e)
-        //{
-        //    // Gửi lệnh Reset thuật toán: Ký tự 'R' (Mã Hex: 0x52)
-        //    SendCommand('R');
-        //}
-        // --- HÀM GỬI FRAME TEST (TYPEDATA = 0x04) ---
         private void SendTestFrame(ushort data)
         {
             if (serialPort == null || !serialPort.IsOpen) return;
@@ -448,7 +441,7 @@ namespace MAX30102_GUI
             string rawHex = BitConverter.ToString(frame);
             byte typeData = frame[1];
 
-            this.Invoke(new Action(() =>
+            this.BeginInvoke(new Action(() =>
             {
                 if (txtReceive != null) txtReceive.Text = rawHex;
 
@@ -501,6 +494,17 @@ namespace MAX30102_GUI
 
             serialPort.Write(frame, 0, frame.Length);
             if (txtSend != null) txtSend.Text = BitConverter.ToString(frame);
+        }
+
+        private void btnReset_Click(object sender, EventArgs e)
+        {
+            // Kịch bản B: lệnh Reset thuật toán, ký tự 'R' (0x52)
+            SendCommand('R');
+
+            // Xóa số liệu cũ trên giao diện
+            chartPPG.Series[0].Points.Clear();
+            txtBPM.Text = "--";
+            txtSpO2.Text = "--";
         }
     }
 }
