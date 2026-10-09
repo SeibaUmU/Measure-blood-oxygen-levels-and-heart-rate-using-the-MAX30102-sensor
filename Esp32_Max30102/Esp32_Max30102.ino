@@ -4,8 +4,8 @@
 
 #define I2C_SDA 21
 #define I2C_SCL 22
-#define UART2_TX 17     // ESP32 -> MAX3232 -> COM DE2 (frame A, C)
-#define UART2_RX 16     // COM DE2 -> MAX3232 -> ESP32 (lệnh kịch bản B)
+#define UART2_TX 17     
+#define UART2_RX 16     
 #define UART2_BAUD 9600
 
 MAX30105 particleSensor;
@@ -13,6 +13,8 @@ MAX30105 particleSensor;
 #define BUFFER_LENGTH 100
 uint32_t irBuffer[BUFFER_LENGTH];
 uint32_t redBuffer[BUFFER_LENGTH];
+uint32_t tsBuffer[BUFFER_LENGTH];   // micros() lúc nhận từng mẫu
+float bpmAvg = 0;                   // nhịp tim đã làm mượt (0 = chưa có)
 
 int32_t spo2;
 int8_t validSPO2;
@@ -91,6 +93,34 @@ void pollCommand() {
   }
 }
 
+// Đếm nhịp ĐỘC LẬP: dùng thời gian thật của từng mẫu, không giả định 25 Hz.
+// Trả về BPM (0 nếu chưa đủ 3 đỉnh trong cửa sổ).
+float beatBpm(float fs) {
+  static float y[BUFFER_LENGTH], z[BUFFER_LENGTH];
+  const uint32_t MIN_BEAT_US = 400000UL;               // 2 đỉnh cách nhau < 0,4 s thì coi là 1
+  int half = (int)(fs * 0.5f); if (half < 2) half = 2;  // trung bình trượt ~1 giây
+  for (int i = 0; i < BUFFER_LENGTH; i++) {
+    int a = (i - half < 0) ? 0 : i - half;
+    int b = (i + half > BUFFER_LENGTH - 1) ? BUFFER_LENGTH - 1 : i + half;
+    float s = 0; for (int k = a; k <= b; k++) s += irBuffer[k];
+    y[i] = s / (b - a + 1) - (float)irBuffer[i];        // bỏ DC, đảo dấu: nhịp tim = đỉnh
+  }
+  z[0] = y[0]; z[BUFFER_LENGTH - 1] = y[BUFFER_LENGTH - 1];
+  for (int i = 1; i < BUFFER_LENGTH - 1; i++) z[i] = (y[i - 1] + y[i] + y[i + 1]) / 3.0f;
+  float hi = 0; for (int i = 0; i < BUFFER_LENGTH; i++) if (z[i] > hi) hi = z[i];
+  float thr = 0.35f * hi;
+  int pk[BUFFER_LENGTH / 2], np = 0;
+  for (int i = 1; i < BUFFER_LENGTH - 1; i++) {
+    if (z[i] > thr && z[i] > z[i - 1] && z[i] >= z[i + 1]) {
+      if (np > 0 && (uint32_t)(tsBuffer[i] - tsBuffer[pk[np - 1]]) < MIN_BEAT_US) {
+        if (z[i] > z[pk[np - 1]]) pk[np - 1] = i;       // 2 đỉnh quá gần: giữ đỉnh cao hơn
+      } else if (np < BUFFER_LENGTH / 2) pk[np++] = i;
+    }
+  }
+  if (np < 3) return 0;
+  return 60e6f * (np - 1) / (float)(uint32_t)(tsBuffer[pk[np - 1]] - tsBuffer[pk[0]]);
+}
+
 // Đọc 1 mẫu vào buffer[i] và gửi Kịch bản C. Trả về false nếu bị Stop/Reset giữa chừng.
 bool grabSample(byte i) {
   while (true) {
@@ -100,8 +130,9 @@ bool grabSample(byte i) {
     particleSensor.check();
   }
 
-  redBuffer[i] = particleSensor.getRed();
-  irBuffer[i] = particleSensor.getIR();
+  tsBuffer[i]  = micros();
+  redBuffer[i] = particleSensor.getFIFORed();   // KHÔNG dùng getRed()/getIR(): chúng chờ thêm mẫu mới
+  irBuffer[i]  = particleSensor.getFIFOIR();
 
   // Rút gọn giá trị IR (18-bit) xuống 16-bit để nhét vừa frame gửi lên GUI vẽ đồ thị
   uint16_t ppg_send = (uint16_t)(irBuffer[i] >> 2);
@@ -140,6 +171,7 @@ void loop() {
     while (particleSensor.available()) particleSensor.nextSample();
     spo2 = 0;
     heartRate = 0;
+    bpmAvg = 0;
   }
 
   if (!measuring) {                      // Đang dừng: không gửi gì lên DE2
@@ -167,6 +199,7 @@ void loop() {
     for (byte i = 25; i < BUFFER_LENGTH; i++) {
       redBuffer[i - 25] = redBuffer[i];
       irBuffer[i - 25] = irBuffer[i];
+      tsBuffer[i - 25] = tsBuffer[i];
     }
 
     for (byte i = 75; i < BUFFER_LENGTH; i++) {
@@ -176,6 +209,10 @@ void loop() {
     maxim_heart_rate_and_oxygen_saturation(irBuffer, BUFFER_LENGTH, redBuffer,
                                             &spo2, &validSPO2, &heartRate, &validHeartRate);
 
-    sendFrameA((uint8_t)constrain(heartRate, 0, 255), (uint8_t)constrain(spo2, 0, 255));
+    // Nhịp tim: dùng bộ đếm độc lập (Maxim chỉ còn dùng cho SpO2)
+    float fs  = (BUFFER_LENGTH - 1) * 1e6f / (float)(uint32_t)(tsBuffer[BUFFER_LENGTH - 1] - tsBuffer[0]);
+    float bpm = beatBpm(fs);
+    if (bpm > 0) bpmAvg = (bpmAvg == 0) ? bpm : 0.7f * bpmAvg + 0.3f * bpm;   // làm mượt
+    sendFrameA((uint8_t)constrain((int)(bpmAvg + 0.5f), 0, 255), (uint8_t)constrain(spo2, 0, 255));
   }
 }
