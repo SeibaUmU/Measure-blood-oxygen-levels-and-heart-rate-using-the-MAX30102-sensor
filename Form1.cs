@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO.Ports;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Windows.Forms.DataVisualization.Charting;
@@ -21,36 +22,102 @@ namespace MAX30102_GUI
         {
             InitializeComponent();
             SetupUIInitialState();
+            InitComboBoxes();
+            SetupChart();
         }
         private void form1_Load(object sender, EventArgs e)
         {
-            // Cấu hình cổng COM
-            string[] ports = SerialPort.GetPortNames();
-            cboPort.Items.AddRange(ports);
-            if (ports.Length > 0) cboPort.SelectedIndex = 0;
-            cboBaudRate.SelectedItem = "9600";
-
-            // --- CẤU HÌNH ĐỒ THỊ PPG ---
-
-            // 1. Xóa dữ liệu cũ và cài đặt đường vẽ
+            // Cấu hình COM/Baudrate và đồ thị đã chuyển sang constructor
+            // (InitComboBoxes, SetupChart) nên không phụ thuộc vào sự kiện Load nữa.
+        }
+        // ===== ĐỒ THỊ PPG =====
+        private const int PPG_WINDOW = 200;   // Số mẫu hiển thị cùng lúc (cửa sổ trượt FIFO)
+        private double ppgDc = 0;
+        private void SetupChart()
+        {
+            // 1. Chỉ 1 đường PPG, dạng line, màu xanh lá
             chartPPG.Series.Clear();
             var series = chartPPG.Series.Add("PPG");
-            series.ChartType = SeriesChartType.FastLine; // Tối ưu vẽ realtime
-            series.Color = Color.Lime;                   // Sóng màu xanh lá y tế
-            series.BorderWidth = 2;                      // Độ dày đường nét
+            series.ChartType = SeriesChartType.FastLine;   // Tối ưu vẽ realtime
+            series.Color = Color.LimeGreen;
+            series.BorderWidth = 2;
 
-            // 2. Tắt các nhãn số và lưới dọc gây rối mắt trên trục hoành (X)
-            chartPPG.ChartAreas[0].AxisX.LabelStyle.Enabled = false;
-            chartPPG.ChartAreas[0].AxisX.MajorGrid.Enabled = false;
+            // 2. Bỏ chú thích (Legend) cho rộng chỗ
+            chartPPG.Legends.Clear();
 
-            // 3. Tối ưu trục tung (Y) để sóng tự động co giãn bám sát biên độ
-            chartPPG.ChartAreas[0].AxisY.IsStartedFromZero = false;
-            chartPPG.ChartAreas[0].AxisY.MajorGrid.LineColor = Color.LightGray; // Lưới ngang màu nhạt
-            chartPPG.ChartAreas[0].AxisY.MajorGrid.LineDashStyle = ChartDashStyle.Dash;
+            var area = chartPPG.ChartAreas[0];
 
-            // 4. Tắt chú thích (Legend) vì chỉ có 1 đường duy nhất, giúp đồ thị rộng hơn
-            chartPPG.Legends[0].Enabled = false;
+            // 3. Trục thời gian cố định 1..PPG_WINDOW: đồ thị không bị co giãn,
+            //    mẫu mới vào bên phải, mẫu cũ trượt ra bên trái như điện tâm đồ
+            area.AxisX.Minimum = 1;
+            area.AxisX.Maximum = PPG_WINDOW;
+            area.AxisX.LabelStyle.Enabled = false;     // trục thời gian không hiện số
+            area.AxisX.MajorTickMark.Enabled = false;
+            area.AxisX.MajorGrid.Enabled = false;
+
+            // 4. Trục biên độ: chỉ trục này hiện số, tự co giãn bám sát sóng
+            area.AxisY.LabelStyle.Enabled = true;
+            area.AxisY.MajorTickMark.Enabled = true;
+            area.AxisY.IsStartedFromZero = false;
+            area.AxisY.MajorGrid.LineColor = Color.LightGray;
+            area.AxisY.MajorGrid.LineDashStyle = ChartDashStyle.Dash;
         }
+
+        // ===== COM PORT & BAUDRATE =====
+        private const int WM_DEVICECHANGE = 0x0219;   // Windows báo có thiết bị cắm vào / rút ra
+
+        private void InitComboBoxes()
+        {
+            // Baudrate: yêu cầu đề là 9600 -> giữ combo box nhưng chọn sẵn
+            cboBaudRate.Items.Clear();
+            cboBaudRate.Items.Add("9600");
+            cboBaudRate.SelectedIndex = 0;
+
+            // COM Port: tự quét các cổng đang có (giống Device Manager)
+            RefreshComPorts();
+
+            // Mỗi lần bấm mở danh sách cũng quét lại cho chắc
+            cboPort.DropDown += (s, e) => RefreshComPorts();
+        }
+
+        private void RefreshComPorts()
+        {
+            // Đang kết nối thì không đụng vào danh sách
+            if (serialPort.IsOpen) return;
+
+            // Sắp xếp COM2 trước COM10
+            string[] ports = SerialPort.GetPortNames()
+                                       .OrderBy(p => p.Length)
+                                       .ThenBy(p => p)
+                                       .ToArray();
+
+            // Danh sách không đổi thì thôi, tránh nháy khi đang mở dropdown
+            if (ports.SequenceEqual(cboPort.Items.Cast<string>())) return;
+
+            string current = cboPort.SelectedItem as string;
+
+            cboPort.BeginUpdate();
+            cboPort.Items.Clear();
+            cboPort.Items.AddRange(ports);
+            cboPort.EndUpdate();
+
+            if (current != null && ports.Contains(current))
+                cboPort.SelectedItem = current;      // giữ lại cổng đang chọn nếu nó vẫn còn
+            else if (ports.Length > 0)
+                cboPort.SelectedIndex = 0;           // không thì chọn cổng đầu tiên
+            else
+                cboPort.SelectedIndex = -1;          // không có cổng nào
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            base.WndProc(ref m);
+            if (m.Msg == WM_DEVICECHANGE)
+            {
+                RefreshComPorts();   // cắm / rút USB-UART là danh sách tự cập nhật
+            }
+        }
+
         private void SetupUIInitialState()
         {
             // Thiết lập trạng thái các nút ban đầu khi chưa Connect
@@ -264,6 +331,7 @@ namespace MAX30102_GUI
             SendCommand('1');
 
             chartPPG.Series[0].Points.Clear();   // đồ thị vẽ lại từ đầu
+            ppgDc = 0;
 
             btnStart.Enabled = false;
             btnStop.Enabled = true;
@@ -307,6 +375,11 @@ namespace MAX30102_GUI
             Array.Clear(receivedSamples, 0, receivedSamples.Length);
             receivedTeResponse = false;
 
+            // Reset thanh tiến độ về 0% (tiến độ tính theo số mẫu đã GỬI)
+            progressBarTest.Minimum = 0;
+            progressBarTest.Maximum = 1000;   // = tổng số mẫu sẽ gửi
+            UpdateTestProgress(0);
+
             btnTest.Enabled = false;
             btnStart.Enabled = false;
             btnDisconnect.Enabled = false;
@@ -326,6 +399,7 @@ namespace MAX30102_GUI
                 {
                     if (!serialPort.IsOpen) break;
                     SendTestFrame((ushort)i);
+                    UpdateTestProgress(i);
                     await Task.Delay(30);
                 }
 
@@ -373,6 +447,12 @@ namespace MAX30102_GUI
                 btnStart.Enabled = true;
                 btnDisconnect.Enabled = true;
             }
+        }
+        private void UpdateTestProgress(int sent)
+        {
+            // sent = số mẫu đã gửi (0..1000)
+            progressBarTest.Value = sent;
+            lblTestProgress.Text = (sent * 100 / progressBarTest.Maximum) + "%";
         }
         private void ProcessRxBuffer()
         {
@@ -457,8 +537,11 @@ namespace MAX30102_GUI
                     ushort ppgRaw = (ushort)((frame[2] << 8) | frame[3]);
                     if (chartPPG.Series.Count > 0)
                     {
-                        chartPPG.Series[0].Points.AddY(ppgRaw);
-                        if (chartPPG.Series[0].Points.Count > 200) chartPPG.Series[0].Points.RemoveAt(0);
+                        if (ppgDc == 0) ppgDc = ppgRaw;               // mẫu đầu tiên
+                        ppgDc += (ppgRaw - ppgDc) * 0.05;             // trung bình trượt chậm (~0,8 s) = thành phần DC
+                        double ac = ppgDc - ppgRaw;                   // đảo dấu để đỉnh sóng ứng với nhịp tim
+                        chartPPG.Series[0].Points.AddY(ac);
+                        if (chartPPG.Series[0].Points.Count > PPG_WINDOW) chartPPG.Series[0].Points.RemoveAt(0);
                     }
                 }
                 else if (typeData == 0x04)
@@ -503,6 +586,7 @@ namespace MAX30102_GUI
 
             // Xóa số liệu cũ trên giao diện
             chartPPG.Series[0].Points.Clear();
+            ppgDc = 0;
             txtBPM.Text = "--";
             txtSpO2.Text = "--";
         }

@@ -29,9 +29,9 @@
         private void InitializeComponent()
         {
             this.components = new System.ComponentModel.Container();
-            System.Windows.Forms.DataVisualization.Charting.ChartArea chartArea2 = new System.Windows.Forms.DataVisualization.Charting.ChartArea();
-            System.Windows.Forms.DataVisualization.Charting.Legend legend2 = new System.Windows.Forms.DataVisualization.Charting.Legend();
-            System.Windows.Forms.DataVisualization.Charting.Series series2 = new System.Windows.Forms.DataVisualization.Charting.Series();
+            System.Windows.Forms.DataVisualization.Charting.ChartArea chartArea1 = new System.Windows.Forms.DataVisualization.Charting.ChartArea();
+            System.Windows.Forms.DataVisualization.Charting.Legend legend1 = new System.Windows.Forms.DataVisualization.Charting.Legend();
+            System.Windows.Forms.DataVisualization.Charting.Series series1 = new System.Windows.Forms.DataVisualization.Charting.Series();
             this.lblTitle = new System.Windows.Forms.Label();
             this.grpConnection = new System.Windows.Forms.GroupBox();
             this.txtStatus = new System.Windows.Forms.TextBox();
@@ -45,6 +45,10 @@
             this.grpPPG = new System.Windows.Forms.GroupBox();
             this.chartPPG = new System.Windows.Forms.DataVisualization.Charting.Chart();
             this.grpMetrics = new System.Windows.Forms.GroupBox();
+            this.txtBPM_Max = new System.Windows.Forms.TextBox();
+            this.txtBPM_Min = new System.Windows.Forms.TextBox();
+            this.txtBPM_Avg = new System.Windows.Forms.TextBox();
+            this.btnReset = new System.Windows.Forms.Button();
             this.btnExport = new System.Windows.Forms.Button();
             this.btnStop = new System.Windows.Forms.Button();
             this.btnStart = new System.Windows.Forms.Button();
@@ -64,7 +68,9 @@
             this.lblReceive = new System.Windows.Forms.Label();
             this.lblSend = new System.Windows.Forms.Label();
             this.serialPort1 = new System.IO.Ports.SerialPort(this.components);
-            this.btnReset = new System.Windows.Forms.Button();
+            this.lblBPM_Avg = new System.Windows.Forms.Label();
+            this.lblBPM_Min = new System.Windows.Forms.Label();
+            this.lblBPM_Max = new System.Windows.Forms.Label();
             this.grpConnection.SuspendLayout();
             this.grpPPG.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.chartPPG)).BeginInit();
@@ -151,8 +157,6 @@
             // 
             this.cboBaudRate.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.cboBaudRate.FormattingEnabled = true;
-            this.cboBaudRate.Items.AddRange(new object[] {
-            "9600"});
             this.cboBaudRate.Location = new System.Drawing.Point(125, 71);
             this.cboBaudRate.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.cboBaudRate.Name = "cboBaudRate";
@@ -163,13 +167,6 @@
             // 
             this.cboPort.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.cboPort.FormattingEnabled = true;
-            this.cboPort.Items.AddRange(new object[] {
-            "COM1",
-            "COM2",
-            "COM3",
-            "COM4",
-            "COM5",
-            "COM6"});
             this.cboPort.Location = new System.Drawing.Point(125, 31);
             this.cboPort.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.cboPort.Name = "cboPort";
@@ -197,34 +194,40 @@
             // grpPPG
             // 
             this.grpPPG.Controls.Add(this.chartPPG);
-            this.grpPPG.Location = new System.Drawing.Point(727, 65);
+            this.grpPPG.Location = new System.Drawing.Point(367, 65);
             this.grpPPG.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.grpPPG.Name = "grpPPG";
             this.grpPPG.Padding = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.grpPPG.Size = new System.Drawing.Size(415, 345);
+            this.grpPPG.Size = new System.Drawing.Size(948, 591);
             this.grpPPG.TabIndex = 2;
             this.grpPPG.TabStop = false;
             this.grpPPG.Text = "PPG WAVEFORM";
             // 
             // chartPPG
             // 
-            chartArea2.Name = "ChartArea1";
-            this.chartPPG.ChartAreas.Add(chartArea2);
-            legend2.Name = "Legend1";
-            this.chartPPG.Legends.Add(legend2);
+            chartArea1.Name = "ChartArea1";
+            this.chartPPG.ChartAreas.Add(chartArea1);
+            legend1.Name = "Legend1";
+            this.chartPPG.Legends.Add(legend1);
             this.chartPPG.Location = new System.Drawing.Point(33, 55);
             this.chartPPG.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.chartPPG.Name = "chartPPG";
-            series2.ChartArea = "ChartArea1";
-            series2.Legend = "Legend1";
-            series2.Name = "Series1";
-            this.chartPPG.Series.Add(series2);
-            this.chartPPG.Size = new System.Drawing.Size(358, 266);
+            series1.ChartArea = "ChartArea1";
+            series1.Legend = "Legend1";
+            series1.Name = "Series1";
+            this.chartPPG.Series.Add(series1);
+            this.chartPPG.Size = new System.Drawing.Size(909, 527);
             this.chartPPG.TabIndex = 7;
             this.chartPPG.Text = "PPG waveform";
             // 
             // grpMetrics
             // 
+            this.grpMetrics.Controls.Add(this.lblBPM_Max);
+            this.grpMetrics.Controls.Add(this.lblBPM_Min);
+            this.grpMetrics.Controls.Add(this.lblBPM_Avg);
+            this.grpMetrics.Controls.Add(this.txtBPM_Max);
+            this.grpMetrics.Controls.Add(this.txtBPM_Min);
+            this.grpMetrics.Controls.Add(this.txtBPM_Avg);
             this.grpMetrics.Controls.Add(this.btnReset);
             this.grpMetrics.Controls.Add(this.btnExport);
             this.grpMetrics.Controls.Add(this.btnStop);
@@ -237,24 +240,55 @@
             this.grpMetrics.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.grpMetrics.Name = "grpMetrics";
             this.grpMetrics.Padding = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.grpMetrics.Size = new System.Drawing.Size(269, 154);
+            this.grpMetrics.Size = new System.Drawing.Size(306, 276);
             this.grpMetrics.TabIndex = 3;
             this.grpMetrics.TabStop = false;
-            this.grpMetrics.Text = "MEASUREMENTS";
+            this.grpMetrics.Text = "METRICS";
+            // 
+            // txtBPM_Max
+            // 
+            this.txtBPM_Max.Location = new System.Drawing.Point(238, 85);
+            this.txtBPM_Max.Name = "txtBPM_Max";
+            this.txtBPM_Max.Size = new System.Drawing.Size(47, 22);
+            this.txtBPM_Max.TabIndex = 10;
+            // 
+            // txtBPM_Min
+            // 
+            this.txtBPM_Min.Location = new System.Drawing.Point(137, 85);
+            this.txtBPM_Min.Name = "txtBPM_Min";
+            this.txtBPM_Min.Size = new System.Drawing.Size(47, 22);
+            this.txtBPM_Min.TabIndex = 9;
+            // 
+            // txtBPM_Avg
+            // 
+            this.txtBPM_Avg.Location = new System.Drawing.Point(47, 85);
+            this.txtBPM_Avg.Name = "txtBPM_Avg";
+            this.txtBPM_Avg.Size = new System.Drawing.Size(47, 22);
+            this.txtBPM_Avg.TabIndex = 8;
+            // 
+            // btnReset
+            // 
+            this.btnReset.Location = new System.Drawing.Point(144, 188);
+            this.btnReset.Name = "btnReset";
+            this.btnReset.Size = new System.Drawing.Size(75, 28);
+            this.btnReset.TabIndex = 7;
+            this.btnReset.Text = "Reset";
+            this.btnReset.UseVisualStyleBackColor = true;
+            this.btnReset.Click += new System.EventHandler(this.btnReset_Click);
             // 
             // btnExport
             // 
-            this.btnExport.Location = new System.Drawing.Point(177, 108);
+            this.btnExport.Location = new System.Drawing.Point(144, 233);
             this.btnExport.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.btnExport.Name = "btnExport";
-            this.btnExport.Size = new System.Drawing.Size(75, 28);
+            this.btnExport.Size = new System.Drawing.Size(73, 28);
             this.btnExport.TabIndex = 6;
             this.btnExport.Text = "Export";
             this.btnExport.UseVisualStyleBackColor = true;
             // 
             // btnStop
             // 
-            this.btnStop.Location = new System.Drawing.Point(97, 108);
+            this.btnStop.Location = new System.Drawing.Point(10, 233);
             this.btnStop.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.btnStop.Name = "btnStop";
             this.btnStop.Size = new System.Drawing.Size(75, 28);
@@ -265,7 +299,7 @@
             // 
             // btnStart
             // 
-            this.btnStart.Location = new System.Drawing.Point(16, 108);
+            this.btnStart.Location = new System.Drawing.Point(8, 188);
             this.btnStart.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.btnStart.Name = "btnStart";
             this.btnStart.Size = new System.Drawing.Size(75, 28);
@@ -277,7 +311,7 @@
             // txtSpO2
             // 
             this.txtSpO2.BackColor = System.Drawing.Color.White;
-            this.txtSpO2.Location = new System.Drawing.Point(115, 68);
+            this.txtSpO2.Location = new System.Drawing.Point(115, 148);
             this.txtSpO2.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.txtSpO2.Name = "txtSpO2";
             this.txtSpO2.ReadOnly = true;
@@ -299,20 +333,20 @@
             // lblSpO2Title
             // 
             this.lblSpO2Title.AutoSize = true;
-            this.lblSpO2Title.Location = new System.Drawing.Point(20, 74);
+            this.lblSpO2Title.Location = new System.Drawing.Point(21, 151);
             this.lblSpO2Title.Name = "lblSpO2Title";
-            this.lblSpO2Title.Size = new System.Drawing.Size(38, 16);
+            this.lblSpO2Title.Size = new System.Drawing.Size(41, 16);
             this.lblSpO2Title.TabIndex = 1;
-            this.lblSpO2Title.Text = "SpO₂";
+            this.lblSpO2Title.Text = "SpO₂:";
             // 
             // lblBPMTitle
             // 
             this.lblBPMTitle.AutoSize = true;
-            this.lblBPMTitle.Location = new System.Drawing.Point(21, 43);
+            this.lblBPMTitle.Location = new System.Drawing.Point(21, 37);
             this.lblBPMTitle.Name = "lblBPMTitle";
-            this.lblBPMTitle.Size = new System.Drawing.Size(36, 16);
+            this.lblBPMTitle.Size = new System.Drawing.Size(39, 16);
             this.lblBPMTitle.TabIndex = 0;
-            this.lblBPMTitle.Text = "BPM";
+            this.lblBPMTitle.Text = "BPM:";
             // 
             // grpTest
             // 
@@ -320,11 +354,11 @@
             this.grpTest.Controls.Add(this.progressBarTest);
             this.grpTest.Controls.Add(this.btnTest);
             this.grpTest.Controls.Add(this.txtTestResult);
-            this.grpTest.Location = new System.Drawing.Point(347, 65);
+            this.grpTest.Location = new System.Drawing.Point(445, 671);
             this.grpTest.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.grpTest.Name = "grpTest";
             this.grpTest.Padding = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.grpTest.Size = new System.Drawing.Size(347, 124);
+            this.grpTest.Size = new System.Drawing.Size(269, 124);
             this.grpTest.TabIndex = 4;
             this.grpTest.TabStop = false;
             this.grpTest.Text = "TEST";
@@ -332,7 +366,7 @@
             // lblTestProgress
             // 
             this.lblTestProgress.AutoSize = true;
-            this.lblTestProgress.Location = new System.Drawing.Point(163, 39);
+            this.lblTestProgress.Location = new System.Drawing.Point(113, 38);
             this.lblTestProgress.Name = "lblTestProgress";
             this.lblTestProgress.Size = new System.Drawing.Size(26, 16);
             this.lblTestProgress.TabIndex = 3;
@@ -340,18 +374,18 @@
             // 
             // progressBarTest
             // 
-            this.progressBarTest.Location = new System.Drawing.Point(33, 31);
+            this.progressBarTest.Location = new System.Drawing.Point(6, 28);
             this.progressBarTest.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.progressBarTest.Name = "progressBarTest";
-            this.progressBarTest.Size = new System.Drawing.Size(289, 36);
+            this.progressBarTest.Size = new System.Drawing.Size(246, 36);
             this.progressBarTest.TabIndex = 2;
             // 
             // btnTest
             // 
-            this.btnTest.Location = new System.Drawing.Point(59, 80);
+            this.btnTest.Location = new System.Drawing.Point(16, 83);
             this.btnTest.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.btnTest.Name = "btnTest";
-            this.btnTest.Size = new System.Drawing.Size(59, 25);
+            this.btnTest.Size = new System.Drawing.Size(82, 25);
             this.btnTest.TabIndex = 1;
             this.btnTest.Text = "TEST";
             this.btnTest.UseVisualStyleBackColor = true;
@@ -360,12 +394,13 @@
             // txtTestResult
             // 
             this.txtTestResult.BackColor = System.Drawing.Color.White;
-            this.txtTestResult.Location = new System.Drawing.Point(179, 82);
+            this.txtTestResult.Location = new System.Drawing.Point(126, 83);
             this.txtTestResult.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.txtTestResult.Name = "txtTestResult";
             this.txtTestResult.ReadOnly = true;
             this.txtTestResult.Size = new System.Drawing.Size(127, 22);
             this.txtTestResult.TabIndex = 0;
+            this.txtTestResult.TabStop = false;
             this.txtTestResult.Text = "0/1000";
             this.txtTestResult.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
@@ -376,11 +411,11 @@
             this.grpSendReceive.Controls.Add(this.txtSend);
             this.grpSendReceive.Controls.Add(this.lblReceive);
             this.grpSendReceive.Controls.Add(this.lblSend);
-            this.grpSendReceive.Location = new System.Drawing.Point(347, 241);
+            this.grpSendReceive.Location = new System.Drawing.Point(13, 585);
             this.grpSendReceive.Margin = new System.Windows.Forms.Padding(4);
             this.grpSendReceive.Name = "grpSendReceive";
             this.grpSendReceive.Padding = new System.Windows.Forms.Padding(4);
-            this.grpSendReceive.Size = new System.Drawing.Size(347, 194);
+            this.grpSendReceive.Size = new System.Drawing.Size(269, 194);
             this.grpSendReceive.TabIndex = 5;
             this.grpSendReceive.TabStop = false;
             this.grpSendReceive.Text = "Data Send/Receive";
@@ -399,7 +434,7 @@
             // txtReceive
             // 
             this.txtReceive.BackColor = System.Drawing.Color.White;
-            this.txtReceive.Location = new System.Drawing.Point(159, 110);
+            this.txtReceive.Location = new System.Drawing.Point(97, 110);
             this.txtReceive.Margin = new System.Windows.Forms.Padding(4);
             this.txtReceive.Name = "txtReceive";
             this.txtReceive.ReadOnly = true;
@@ -409,16 +444,17 @@
             // 
             // txtSend
             // 
-            this.txtSend.Location = new System.Drawing.Point(161, 49);
+            this.txtSend.Location = new System.Drawing.Point(97, 46);
             this.txtSend.Margin = new System.Windows.Forms.Padding(4);
             this.txtSend.Name = "txtSend";
             this.txtSend.Size = new System.Drawing.Size(132, 22);
             this.txtSend.TabIndex = 2;
+            this.txtSend.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
             // lblReceive
             // 
             this.lblReceive.AutoSize = true;
-            this.lblReceive.Location = new System.Drawing.Point(43, 105);
+            this.lblReceive.Location = new System.Drawing.Point(21, 110);
             this.lblReceive.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.lblReceive.Name = "lblReceive";
             this.lblReceive.Size = new System.Drawing.Size(61, 16);
@@ -428,7 +464,7 @@
             // lblSend
             // 
             this.lblSend.AutoSize = true;
-            this.lblSend.Location = new System.Drawing.Point(43, 53);
+            this.lblSend.Location = new System.Drawing.Point(21, 49);
             this.lblSend.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.lblSend.Name = "lblSend";
             this.lblSend.Size = new System.Drawing.Size(42, 16);
@@ -439,21 +475,38 @@
             // 
             this.serialPort1.DataReceived += new System.IO.Ports.SerialDataReceivedEventHandler(this.SerialPort_DataReceived);
             // 
-            // btnReset
+            // lblBPM_Avg
             // 
-            this.btnReset.Location = new System.Drawing.Point(178, 68);
-            this.btnReset.Name = "btnReset";
-            this.btnReset.Size = new System.Drawing.Size(75, 28);
-            this.btnReset.TabIndex = 7;
-            this.btnReset.Text = "Reset";
-            this.btnReset.UseVisualStyleBackColor = true;
-            this.btnReset.Click += new System.EventHandler(this.btnReset_Click);
+            this.lblBPM_Avg.AutoSize = true;
+            this.lblBPM_Avg.Location = new System.Drawing.Point(7, 88);
+            this.lblBPM_Avg.Name = "lblBPM_Avg";
+            this.lblBPM_Avg.Size = new System.Drawing.Size(34, 16);
+            this.lblBPM_Avg.TabIndex = 11;
+            this.lblBPM_Avg.Text = "Avg:";
+            // 
+            // lblBPM_Min
+            // 
+            this.lblBPM_Min.AutoSize = true;
+            this.lblBPM_Min.Location = new System.Drawing.Point(100, 88);
+            this.lblBPM_Min.Name = "lblBPM_Min";
+            this.lblBPM_Min.Size = new System.Drawing.Size(31, 16);
+            this.lblBPM_Min.TabIndex = 12;
+            this.lblBPM_Min.Text = "Min:";
+            // 
+            // lblBPM_Max
+            // 
+            this.lblBPM_Max.AutoSize = true;
+            this.lblBPM_Max.Location = new System.Drawing.Point(194, 88);
+            this.lblBPM_Max.Name = "lblBPM_Max";
+            this.lblBPM_Max.Size = new System.Drawing.Size(35, 16);
+            this.lblBPM_Max.TabIndex = 13;
+            this.lblBPM_Max.Text = "Max:";
             // 
             // form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1168, 450);
+            this.ClientSize = new System.Drawing.Size(1340, 792);
             this.Controls.Add(this.grpSendReceive);
             this.Controls.Add(this.grpTest);
             this.Controls.Add(this.grpMetrics);
@@ -512,6 +565,12 @@
         private System.Windows.Forms.Label lblSend;
         private System.IO.Ports.SerialPort serialPort1;
         private System.Windows.Forms.Button btnReset;
+        private System.Windows.Forms.TextBox txtBPM_Max;
+        private System.Windows.Forms.TextBox txtBPM_Min;
+        private System.Windows.Forms.TextBox txtBPM_Avg;
+        private System.Windows.Forms.Label lblBPM_Max;
+        private System.Windows.Forms.Label lblBPM_Min;
+        private System.Windows.Forms.Label lblBPM_Avg;
     }
 }
 
