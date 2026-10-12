@@ -26,38 +26,47 @@ namespace MAX30102_GUI
             SetupChart();
             SetupActionButtons();
             SetupProgressText();
+            SetupStatsToggle();
         }
         private void form1_Load(object sender, EventArgs e)
         {
             // Cấu hình COM/Baudrate và đồ thị đã chuyển sang constructor
             // (InitComboBoxes, SetupChart) nên không phụ thuộc vào sự kiện Load nữa.
         }
-        // ===== GIAO DIỆN: NÚT START / STOP =====
+        // ===== NÚT START / STOP (GỘP 1 NÚT btnStartStop) =====
+        private bool isMeasuring = false;                        // false: đang chờ Start | true: đang đo
+        private readonly Color startColor = Color.FromArgb(46, 160, 67);    // xanh lá
+        private readonly Color stopColor = Color.FromArgb(214, 48, 49);     // đỏ
+
         private void SetupActionButtons()
         {
-            StyleActionButton(btnStart, Color.FromArgb(46, 160, 67));   // xanh lá
-            StyleActionButton(btnStop, Color.FromArgb(214, 48, 49));    // đỏ
+            btnStartStop.Click -= btnStartStop_Click;   // tránh bị gắn trùng nếu Designer đã gắn sẵn
+            btnStartStop.Click += btnStartStop_Click;
+            btnStartStop.EnabledChanged += (s, e) => UpdateStartStopStyle();
+            UpdateStartStopStyle();
         }
 
-        // Bật thì có màu; bị Disable thì trả về giao diện xám mặc định để dễ phân biệt trạng thái
-        private void StyleActionButton(Button btn, Color back)
+        private void SetMeasuring(bool measuring)
         {
-            Action apply = () =>
+            isMeasuring = measuring;
+            UpdateStartStopStyle();
+        }
+
+        // Chữ + màu theo trạng thái: Start (xanh) / Stop (đỏ); bị Disable thì trả về giao diện xám mặc định
+        private void UpdateStartStopStyle()
+        {
+            btnStartStop.Text = isMeasuring ? "Stop" : "Start";
+            if (btnStartStop.Enabled)
             {
-                if (btn.Enabled)
-                {
-                    btn.BackColor = back;
-                    btn.ForeColor = Color.White;
-                }
-                else
-                {
-                    btn.BackColor = SystemColors.Control;
-                    btn.UseVisualStyleBackColor = true;
-                    btn.ForeColor = SystemColors.ControlText;
-                }
-            };
-            btn.EnabledChanged += (s, e) => apply();
-            apply();
+                btnStartStop.BackColor = isMeasuring ? stopColor : startColor;
+                btnStartStop.ForeColor = isMeasuring ? Color.Black : Color.White;
+            }
+            else
+            {
+                btnStartStop.BackColor = SystemColors.Control;
+                btnStartStop.UseVisualStyleBackColor = true;
+                btnStartStop.ForeColor = SystemColors.ControlText;
+            }
         }
 
         // ===== GIAO DIỆN: CHỮ % TRÊN PROGRESS BAR =====
@@ -99,6 +108,110 @@ namespace MAX30102_GUI
                     }
                 }
             }
+        }
+
+        // ===== THỐNG KÊ BPM / SpO2 (Avg - Min - Max) =====
+        // Giá trị 0 (chưa đo được) bị bỏ qua, không đưa vào Avg / Min / Max
+        private class RunningStat
+        {
+            private long sum;
+            private int count;
+            public int Min { get; private set; }
+            public int Max { get; private set; }
+            public bool HasData { get { return count > 0; } }
+            public double Avg { get { return count > 0 ? (double)sum / count : 0; } }
+
+            public void Add(int value)
+            {
+                if (value <= 0) return;
+                if (count == 0 || value < Min) Min = value;
+                if (count == 0 || value > Max) Max = value;
+                sum += value;
+                count++;
+            }
+
+            public void Clear()
+            {
+                sum = 0;
+                count = 0;
+                Min = 0;
+                Max = 0;
+            }
+        }
+
+        private readonly RunningStat bpmStat = new RunningStat();
+        private readonly RunningStat spo2Stat = new RunningStat();
+
+        private void ShowStats()
+        {
+            ShowStat(bpmStat, txtBPM_Avg, txtBPM_Min, txtBPM_Max, "");
+            ShowStat(spo2Stat, txtSpO2_Avg, txtSpO2_Min, txtSpO2_Max, "%");
+        }
+
+        private void ShowStat(RunningStat s, TextBox avg, TextBox min, TextBox max, string unit)
+        {
+            if (!s.HasData)
+            {
+                avg.Text = min.Text = max.Text = "--";
+                return;
+            }
+            avg.Text = s.Avg.ToString("0.0") + unit;
+            min.Text = s.Min + unit;
+            max.Text = s.Max + unit;
+        }
+
+        private void ClearStats()
+        {
+            bpmStat.Clear();
+            spo2Stat.Clear();
+            ShowStats();   // hiện "--"
+        }
+
+        // ===== NÚT ▼ / ▲ ẨN - HIỆN 3 Ô Avg / Min / Max =====
+        private void SetupStatsToggle()
+        {
+            SetupToggleButton("btnBPMToggle", txtBPM,
+                lblBPM_Avg, txtBPM_Avg, lblBPM_Min, txtBPM_Min, lblBPM_Max, txtBPM_Max);
+            SetupToggleButton("btnSpO2Toggle", txtSpO2,
+                lblSpO2_Avg, txtSpO2_Avg, lblSpO2_Min, txtSpO2_Min, lblSpO2_Max, txtSpO2_Max);
+        }
+
+        // Dùng nút có sẵn trong Designer (cùng tên) nếu có, giữ nguyên Size/Location bạn đặt.
+        // Chưa có thì tự tạo ngay bên phải ô chính. Mặc định ẩn hàng Avg/Min/Max (khoảng trống vẫn giữ nguyên).
+        private void SetupToggleButton(string name, TextBox anchor, params Control[] items)
+        {
+            Button btn = this.Controls.Find(name, true).OfType<Button>().FirstOrDefault();
+            if (btn == null)
+            {
+                btn = new Button();
+                btn.Name = name;
+                btn.Size = new Size(anchor.Height + 6, anchor.Height);   // kích thước nút
+                btn.Location = new Point(anchor.Right + 6, anchor.Top);  // vị trí: bên phải ô chính
+                anchor.Parent.Controls.Add(btn);
+            }
+
+            btn.Text = "\u25BC";                                   // ▼
+            btn.Font = new Font("Segoe UI Symbol", 8f);              // đổi 8f để phóng to / thu nhỏ mũi tên
+            btn.TabStop = false;
+            btn.Cursor = Cursors.Hand;
+
+            // Kiểu phẳng, không viền: chỉ thấy mỗi mũi tên, di chuột vào mới hiện nền xám nhạt
+            btn.FlatStyle = FlatStyle.Flat;
+            btn.FlatAppearance.BorderSize = 0;
+            btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(225, 225, 225);
+            btn.FlatAppearance.MouseDownBackColor = Color.FromArgb(205, 205, 205);
+            btn.BackColor = Color.Transparent;
+            btn.ForeColor = Color.FromArgb(64, 64, 64);
+
+            foreach (Control c in items) c.Visible = false;
+
+            bool expanded = false;
+            btn.Click += (s, e) =>
+            {
+                expanded = !expanded;
+                foreach (Control c in items) c.Visible = expanded;
+                btn.Text = expanded ? "\u25B2" : "\u25BC";   // ▲ khi đang hiện, ▼ khi đang ẩn
+            };
         }
 
         // ===== ĐỒ THỊ PPG =====
@@ -194,8 +307,7 @@ namespace MAX30102_GUI
             // Thiết lập trạng thái các nút ban đầu khi chưa Connect
             btnConnect.Enabled = true;
             btnDisconnect.Enabled = false;
-            btnStart.Enabled = false;
-            btnStop.Enabled = false;
+            btnStartStop.Enabled = false;
             btnTest.Enabled = false;
             btnExport.Enabled = false;
             btnReset.Enabled = false;
@@ -236,10 +348,10 @@ namespace MAX30102_GUI
                 // Quản lý trạng thái nút bấm
                 btnConnect.Enabled = false;       // Disable nút Connect
                 btnDisconnect.Enabled = true;     // Enable nút Disconnect
-                btnStart.Enabled = true;          // Enable nút Start
+                btnStartStop.Enabled = true;      // Enable nút Start/Stop
                 btnTest.Enabled = true;           // Enable nút Test
                 btnReset.Enabled = true;
-                btnExport.Enabled = true;         // Enable nút Export
+                btnExport.Enabled = false;         // Enable nút Export
                 cboPort.Enabled = false;       // Khóa chọn COM khi đang kết nối
                 cboBaudRate.Enabled = false;
             }
@@ -266,8 +378,8 @@ namespace MAX30102_GUI
                 // 3. Khôi phục trạng thái thao tác nút bấm
                 btnConnect.Enabled = true;       // Mở lại nút Connect
                 btnDisconnect.Enabled = false;   // Vô hiệu hóa nút Disconnect
-                btnStart.Enabled = false;        // Tắt nút Start
-                if (btnStop != null) btnStop.Enabled = false;
+                SetMeasuring(false);             // về lại chế độ Start
+                btnStartStop.Enabled = false;    // Tắt nút Start/Stop
                 btnTest.Enabled = false;         // Tắt nút Test
                 btnReset.Enabled = false;
 
@@ -396,28 +508,32 @@ namespace MAX30102_GUI
                 MessageBox.Show("Lỗi gửi lệnh: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
-        private void btnStart_Click(object sender, EventArgs e)
+        private void btnStartStop_Click(object sender, EventArgs e)
+        {
+            if (!isMeasuring) StartMeasurement();
+            else StopMeasurement();
+        }
+        private void StartMeasurement()
         {
             // Kịch bản B: lệnh Start, ký tự '1' (0x31)
             SendCommand('1');
 
             chartPPG.Series[0].Points.Clear();   // đồ thị vẽ lại từ đầu
             ppgDc = 0;
+            ClearStats();
 
-            btnStart.Enabled = false;
-            btnStop.Enabled = true;
+            SetMeasuring(true);                  // nút chuyển sang Stop (đỏ)
             btnReset.Enabled = false;
-            if (btnExport != null) btnExport.Enabled = false;
+            btnExport.Enabled = true;
         }
-        private void btnStop_Click(object sender, EventArgs e)
+        private void StopMeasurement()
         {
             // Kịch bản B: lệnh Stop, ký tự '0' (0x30)
             SendCommand('0');
 
-            btnStart.Enabled = true;
-            btnStop.Enabled = false;
+            SetMeasuring(false);                 // nút chuyển về Start (xanh)
             btnReset.Enabled = true;
-            if (btnExport != null) btnExport.Enabled = true;
+            btnExport.Enabled = true;
         }
         private void SendTestFrame(ushort data)
         {
@@ -452,7 +568,7 @@ namespace MAX30102_GUI
             UpdateTestProgress(0);
 
             btnTest.Enabled = false;
-            btnStart.Enabled = false;
+            if (!isMeasuring) btnStartStop.Enabled = false;   // đang đo thì vẫn giữ nút Stop để dừng được
             btnDisconnect.Enabled = false;
 
             if (txtTestResult != null)
@@ -515,7 +631,7 @@ namespace MAX30102_GUI
             {
                 isTesting = false;
                 btnTest.Enabled = true;
-                btnStart.Enabled = true;
+                btnStartStop.Enabled = true;
                 btnDisconnect.Enabled = true;
             }
         }
@@ -602,6 +718,10 @@ namespace MAX30102_GUI
                     byte spo2 = frame[3];
                     if (txtBPM != null) txtBPM.Text = bpm.ToString();
                     if (txtSpO2 != null) txtSpO2.Text = spo2.ToString() + "%";
+
+                    bpmStat.Add(bpm);
+                    spo2Stat.Add(spo2);
+                    ShowStats();
                 }
                 else if (typeData == 0x03)
                 {
@@ -658,8 +778,62 @@ namespace MAX30102_GUI
             // Xóa số liệu cũ trên giao diện
             chartPPG.Series[0].Points.Clear();
             ppgDc = 0;
+            ClearStats();
             txtBPM.Text = "--";
             txtSpO2.Text = "--";
+            btnExport.Enabled = false;
+        }
+
+        private void btnExport_Click(object sender, EventArgs e)
+        {
+            // 1. Kiểm tra xem có điểm sóng nào trên đồ thị chưa
+            if (chartPPG.Series.Count == 0 || chartPPG.Series[0].Points.Count == 0)
+            {
+                MessageBox.Show("Chưa có dữ liệu sóng PPG để xuất!", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // 2. Khởi tạo hộp thoại lưu file bằng code
+            using (SaveFileDialog saveFileDialog = new SaveFileDialog())
+            {
+                saveFileDialog.Filter = "CSV File (*.csv)|*.csv|Text File (*.txt)|*.txt";
+                saveFileDialog.Title = "Xuất dữ liệu đo MAX30102";
+                saveFileDialog.FileName = $"PPG_Report_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
+
+                if (saveFileDialog.ShowDialog() == DialogResult.OK)
+                {
+                    try
+                    {
+                        using (System.IO.StreamWriter sw = new System.IO.StreamWriter(saveFileDialog.FileName))
+                        {
+                            // Ghi thông tin chỉ số
+                            sw.WriteLine("=== MAX30102 HEALTH MONITOR REPORT ===");
+                            sw.WriteLine($"Export Time,{DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+                            sw.WriteLine($"BPM Average,{txtBPM_Avg.Text}");
+                            sw.WriteLine($"BPM Min / Max,{txtBPM_Min.Text} / {txtBPM_Max.Text}");
+                            sw.WriteLine($"SpO2 Average,{txtSpO2_Avg.Text}");
+                            sw.WriteLine($"SpO2 Min / Max,{txtSpO2_Min.Text} / {txtSpO2_Max.Text}");
+                            sw.WriteLine();
+
+                            // Ghi tọa độ sóng PPG
+                            sw.WriteLine("=== PPG WAVEFORM DATA ===");
+                            sw.WriteLine("Sample_Index,PPG_Amplitude");
+
+                            int sampleIndex = 1;
+                            foreach (var point in chartPPG.Series[0].Points)
+                            {
+                                sw.WriteLine($"{sampleIndex++},{point.YValues[0]}");
+                            }
+                        }
+
+                        MessageBox.Show("Xuất file thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("Lỗi khi xuất file: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            }
         }
     }
 }
