@@ -24,12 +24,83 @@ namespace MAX30102_GUI
             SetupUIInitialState();
             InitComboBoxes();
             SetupChart();
+            SetupActionButtons();
+            SetupProgressText();
         }
         private void form1_Load(object sender, EventArgs e)
         {
             // Cấu hình COM/Baudrate và đồ thị đã chuyển sang constructor
             // (InitComboBoxes, SetupChart) nên không phụ thuộc vào sự kiện Load nữa.
         }
+        // ===== GIAO DIỆN: NÚT START / STOP =====
+        private void SetupActionButtons()
+        {
+            StyleActionButton(btnStart, Color.FromArgb(46, 160, 67));   // xanh lá
+            StyleActionButton(btnStop, Color.FromArgb(214, 48, 49));    // đỏ
+        }
+
+        // Bật thì có màu; bị Disable thì trả về giao diện xám mặc định để dễ phân biệt trạng thái
+        private void StyleActionButton(Button btn, Color back)
+        {
+            Action apply = () =>
+            {
+                if (btn.Enabled)
+                {
+                    btn.BackColor = back;
+                    btn.ForeColor = Color.White;
+                }
+                else
+                {
+                    btn.BackColor = SystemColors.Control;
+                    btn.UseVisualStyleBackColor = true;
+                    btn.ForeColor = SystemColors.ControlText;
+                }
+            };
+            btn.EnabledChanged += (s, e) => apply();
+            apply();
+        }
+
+        // ===== GIAO DIỆN: CHỮ % TRÊN PROGRESS BAR =====
+        private ProgressTextPainter testProgressPainter;
+
+        private void SetupProgressText()
+        {
+            // Label không còn nằm đè lên thanh (nên hết khung nền); chỉ giữ lại để chứa chữ, font, màu chữ
+            lblTestProgress.Visible = false;
+            testProgressPainter = new ProgressTextPainter(progressBarTest, lblTestProgress);
+        }
+
+        // Vẽ trực tiếp chữ lên ProgressBar sau mỗi lần thanh tự vẽ lại
+        private class ProgressTextPainter : NativeWindow
+        {
+            private const int WM_PAINT = 0x000F;
+            private readonly ProgressBar bar;
+            private readonly Label source;
+
+            public ProgressTextPainter(ProgressBar bar, Label source)
+            {
+                this.bar = bar;
+                this.source = source;
+                bar.HandleCreated += (s, e) => AssignHandle(bar.Handle);
+                bar.HandleDestroyed += (s, e) => ReleaseHandle();
+                if (bar.IsHandleCreated) AssignHandle(bar.Handle);
+            }
+
+            protected override void WndProc(ref Message m)
+            {
+                base.WndProc(ref m);
+                if (m.Msg == WM_PAINT)
+                {
+                    using (Graphics g = Graphics.FromHwnd(Handle))
+                    {
+                        TextRenderer.DrawText(g, source.Text, source.Font, bar.ClientRectangle, source.ForeColor,
+                            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
+                            TextFormatFlags.SingleLine | TextFormatFlags.NoPadding);
+                    }
+                }
+            }
+        }
+
         // ===== ĐỒ THỊ PPG =====
         private const int PPG_WINDOW = 200;   // Số mẫu hiển thị cùng lúc (cửa sổ trượt FIFO)
         private double ppgDc = 0;
@@ -451,8 +522,8 @@ namespace MAX30102_GUI
         private void UpdateTestProgress(int sent)
         {
             // sent = số mẫu đã gửi (0..1000)
-            progressBarTest.Value = sent;
             lblTestProgress.Text = (sent * 100 / progressBarTest.Maximum) + "%";
+            progressBarTest.Value = sent;
         }
         private void ProcessRxBuffer()
         {
