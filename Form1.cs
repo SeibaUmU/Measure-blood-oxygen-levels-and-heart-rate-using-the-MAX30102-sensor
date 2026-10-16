@@ -24,9 +24,27 @@ namespace MAX30102_GUI
             SetupUIInitialState();
             InitComboBoxes();
             SetupChart();
-            SetupActionButtons();
-            SetupProgressText();
-            SetupStatsToggle();
+            SetupActionButtons();                                      // LÕI: gắn sự kiện nút Start/Stop
+            SafeSetup("Chữ % trên ProgressBar", SetupProgressText);    // giao diện phụ: lỗi cũng không làm hỏng phần đo
+            SafeSetup("Nút ▼/▲ Avg-Min-Max", SetupStatsToggle);
+            this.Shown += (s, e) => ReportSetupErrors();
+        }
+
+        // ===== BẢO VỆ KHỞI TẠO GIAO DIỆN PHỤ =====
+        private readonly List<string> setupErrors = new List<string>();
+
+        private void SafeSetup(string name, Action setup)
+        {
+            try { setup(); }
+            catch (Exception ex) { setupErrors.Add(name + ": " + ex.GetType().Name + " - " + ex.Message); }
+        }
+
+        private void ReportSetupErrors()
+        {
+            if (setupErrors.Count == 0) return;
+            MessageBox.Show("Có phần giao diện phụ khởi tạo lỗi (phần đo vẫn chạy):\n\n" + string.Join("\n", setupErrors),
+                            "Cảnh báo khởi tạo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            setupErrors.Clear();
         }
         private void form1_Load(object sender, EventArgs e)
         {
@@ -90,22 +108,26 @@ namespace MAX30102_GUI
             {
                 this.bar = bar;
                 this.source = source;
-                bar.HandleCreated += (s, e) => AssignHandle(bar.Handle);
-                bar.HandleDestroyed += (s, e) => ReleaseHandle();
-                if (bar.IsHandleCreated) AssignHandle(bar.Handle);
+                bar.HandleCreated += (s, e) => { if (Handle == IntPtr.Zero) AssignHandle(bar.Handle); };
+                bar.HandleDestroyed += (s, e) => { if (Handle != IntPtr.Zero) ReleaseHandle(); };
+                if (bar.IsHandleCreated && Handle == IntPtr.Zero) AssignHandle(bar.Handle);
             }
 
             protected override void WndProc(ref Message m)
             {
                 base.WndProc(ref m);
-                if (m.Msg == WM_PAINT)
+                if (m.Msg == WM_PAINT && Handle != IntPtr.Zero)
                 {
-                    using (Graphics g = Graphics.FromHwnd(Handle))
+                    try
                     {
-                        TextRenderer.DrawText(g, source.Text, source.Font, bar.ClientRectangle, source.ForeColor,
-                            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
-                            TextFormatFlags.SingleLine | TextFormatFlags.NoPadding);
+                        using (Graphics g = Graphics.FromHwnd(Handle))
+                        {
+                            TextRenderer.DrawText(g, source.Text, source.Font, bar.ClientRectangle, source.ForeColor,
+                                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
+                                TextFormatFlags.SingleLine | TextFormatFlags.NoPadding);
+                        }
                     }
+                    catch (Exception) { /* lỗi vẽ chữ không được làm hỏng luồng chính */ }
                 }
             }
         }
@@ -150,6 +172,7 @@ namespace MAX30102_GUI
 
         private void ShowStat(RunningStat s, TextBox avg, TextBox min, TextBox max, string unit)
         {
+            if (avg == null || min == null || max == null) return;
             if (!s.HasData)
             {
                 avg.Text = min.Text = max.Text = "--";
@@ -180,6 +203,7 @@ namespace MAX30102_GUI
         // Chưa có thì tự tạo ngay bên phải ô chính. Mặc định ẩn hàng Avg/Min/Max (khoảng trống vẫn giữ nguyên).
         private void SetupToggleButton(string name, TextBox anchor, params Control[] items)
         {
+            if (anchor == null || anchor.Parent == null) return;
             Button btn = this.Controls.Find(name, true).OfType<Button>().FirstOrDefault();
             if (btn == null)
             {
@@ -203,13 +227,13 @@ namespace MAX30102_GUI
             btn.BackColor = Color.Transparent;
             btn.ForeColor = Color.FromArgb(64, 64, 64);
 
-            foreach (Control c in items) c.Visible = false;
+            foreach (Control c in items) if (c != null) c.Visible = false;
 
             bool expanded = false;
             btn.Click += (s, e) =>
             {
                 expanded = !expanded;
-                foreach (Control c in items) c.Visible = expanded;
+                foreach (Control c in items) if (c != null) c.Visible = expanded;
                 btn.Text = expanded ? "\u25B2" : "\u25BC";   // ▲ khi đang hiện, ▼ khi đang ẩn
             };
         }
@@ -472,13 +496,13 @@ namespace MAX30102_GUI
                 // Bỏ qua ngoại lệ ngắt kết nối đột ngột
             }
         }
-        private void SendCommand(char commandChar)
+        private bool SendCommand(char commandChar)
         {
             // 1. Kiểm tra trạng thái cổng COM
             if (serialPort == null || !serialPort.IsOpen)
             {
                 MessageBox.Show("Vui lòng CONNECT cổng COM trước khi gửi lệnh!", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
+                return false;
             }
 
             try
@@ -502,10 +526,12 @@ namespace MAX30102_GUI
                 {
                     txtSend.Text = BitConverter.ToString(frame);
                 }
+                return true;
             }
             catch (Exception ex)
             {
                 MessageBox.Show("Lỗi gửi lệnh: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
             }
         }
         private void btnStartStop_Click(object sender, EventArgs e)
@@ -516,7 +542,7 @@ namespace MAX30102_GUI
         private void StartMeasurement()
         {
             // Kịch bản B: lệnh Start, ký tự '1' (0x31)
-            SendCommand('1');
+            if (!SendCommand('1')) return;       // gửi thất bại thì KHÔNG đổi trạng thái nút
 
             chartPPG.Series[0].Points.Clear();   // đồ thị vẽ lại từ đầu
             ppgDc = 0;
@@ -529,7 +555,7 @@ namespace MAX30102_GUI
         private void StopMeasurement()
         {
             // Kịch bản B: lệnh Stop, ký tự '0' (0x30)
-            SendCommand('0');
+            if (!SendCommand('0')) return;       // gửi thất bại thì vẫn giữ nút Stop để bấm lại
 
             SetMeasuring(false);                 // nút chuyển về Start (xanh)
             btnReset.Enabled = true;
@@ -638,7 +664,10 @@ namespace MAX30102_GUI
         private void UpdateTestProgress(int sent)
         {
             // sent = số mẫu đã gửi (0..1000)
-            lblTestProgress.Text = (sent * 100 / progressBarTest.Maximum) + "%";
+            int max = progressBarTest.Maximum;
+            if (max <= 0) return;
+            sent = Math.Max(progressBarTest.Minimum, Math.Min(max, sent));
+            lblTestProgress.Text = (sent * 100 / max) + "%";
             progressBarTest.Value = sent;
         }
         private void ProcessRxBuffer()
@@ -708,6 +737,7 @@ namespace MAX30102_GUI
             string rawHex = BitConverter.ToString(frame);
             byte typeData = frame[1];
 
+            if (IsDisposed || !IsHandleCreated) return;
             this.BeginInvoke(new Action(() =>
             {
                 if (txtReceive != null) txtReceive.Text = rawHex;
