@@ -1,0 +1,299 @@
+<Window x:Class="MAX30102_WPF.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.modernwpf.com/2019"
+        xmlns:sp="clr-namespace:ScottPlot.WPF;assembly=ScottPlot.WPF"
+        ui:WindowHelper.UseModernWindowStyle="True"
+        Title="MAX30102 Health Monitor"
+        Width="1280" Height="800" MinWidth="1100" MinHeight="700"
+        Background="#0E1420"
+        FontFamily="Segoe UI Variable, Segoe UI">
+
+    <Window.Resources>
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="#161E2E"/>
+            <Setter Property="BorderBrush" Value="#243049"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Padding" Value="16"/>
+            <Setter Property="Margin" Value="0,0,0,12"/>
+        </Style>
+        <Style x:Key="CardTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#E6EBF5"/>
+            <Setter Property="Margin" Value="0,0,0,12"/>
+        </Style>
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="#8593AD"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
+        </Style>
+        <Style x:Key="BigNumber" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="46"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontFamily" Value="Bahnschrift, Segoe UI"/>
+        </Style>
+        <Style x:Key="StatText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="#8593AD"/>
+            <Setter Property="LineHeight" Value="18"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="20,8,20,20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+            <Viewbox Width="40" Height="40" Margin="0,0,12,0" VerticalAlignment="Center">
+                <Canvas Width="256" Height="256">
+                    <Rectangle Canvas.Left="8" Canvas.Top="8" Width="240" Height="240" RadiusX="56" RadiusY="56"
+                               Fill="#161E2E" Stroke="#243049" StrokeThickness="2"/>
+                    <Path Stroke="#FF5C7A" StrokeThickness="1.5" StrokeLineJoin="Round"
+                          Data="M12,21.35 L10.55,20.03 C5.4,15.36 2,12.28 2,8.5 C2,5.42 4.42,3 7.5,3 C9.24,3 10.91,3.81 12,5.09 C13.09,3.81 14.76,3 16.5,3 C19.58,3 22,5.42 22,8.5 C22,12.28 18.6,15.36 13.45,20.04 Z">
+                        <Path.RenderTransform>
+                            <MatrixTransform Matrix="7.5,0,0,7.5,38,37"/>
+                        </Path.RenderTransform>
+                    </Path>
+                    <Path Stroke="#161E2E" StrokeThickness="19" StrokeLineJoin="Round"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M36,140 L82,140 C92,140 96,90 108,90 C120,90 120,124 128,128 C133,120 136,112 142,112 C150,112 152,140 166,140 L220,140"/>
+                    <Path Stroke="#3DDC97" StrokeThickness="9" StrokeLineJoin="Round"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M36,140 L82,140 C92,140 96,90 108,90 C120,90 120,124 128,128 C133,120 136,112 142,112 C150,112 152,140 166,140 L220,140"/>
+                    <Ellipse Canvas.Left="202" Canvas.Top="42" Width="20" Height="20" Stroke="#4CC9F0" StrokeThickness="5"/>
+                    <Ellipse Canvas.Left="224" Canvas.Top="76" Width="12" Height="12" Stroke="#4CC9F0" StrokeThickness="4.5"/>
+                    <Ellipse Canvas.Left="189" Canvas.Top="25" Width="10" Height="10" Stroke="#4CC9F0" StrokeThickness="4"/>
+                </Canvas>
+            </Viewbox>
+            <TextBlock Text="MAX30102 Health Monitor" FontSize="24" FontWeight="SemiBold" Foreground="#F2F5FB"/>
+        </StackPanel>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="340"/>
+                <ColumnDefinition Width="16"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- LEFT COLUMN -->
+            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+
+                    <!-- Connection -->
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource CardTitle}" Text="Connection"/>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="COM port"/>
+                            <ComboBox x:Name="cboPort" HorizontalAlignment="Stretch" Margin="0,0,0,10"/>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Baud rate"/>
+                            <ComboBox x:Name="cboBaudRate" HorizontalAlignment="Stretch" Margin="0,0,0,14"/>
+
+                            <Border x:Name="statusPill" CornerRadius="12" Background="#4A1D2A"
+                                    Padding="12,4" HorizontalAlignment="Left" Margin="0,0,0,14">
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse x:Name="statusDot" Width="8" Height="8" Fill="#FF5C7A"
+                                             Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="txtStatus" Text="Disconnected" FontSize="12"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition/>
+                                    <ColumnDefinition Width="8"/>
+                                    <ColumnDefinition/>
+                                </Grid.ColumnDefinitions>
+                                <Button x:Name="btnConnect" Content="Connect" HorizontalAlignment="Stretch"
+                                        Style="{DynamicResource AccentButtonStyle}" Click="btnConnect_Click"/>
+                                <Button x:Name="btnDisconnect" Grid.Column="2" Content="Disconnect"
+                                        HorizontalAlignment="Stretch" Click="btnDisconnect_Click"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Metrics -->
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource CardTitle}" Text="Metrics"/>
+                            <Grid Margin="0,0,0,14">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition/>
+                                    <ColumnDefinition/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0">
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                        <Path Width="22" Height="22" Stretch="Uniform" Margin="0,0,8,0"
+                                              Stroke="#FF5C7A" StrokeThickness="1.6" StrokeLineJoin="Round"
+                                              RenderTransformOrigin="0.5,0.5"
+                                              Data="M12,21.35 L10.55,20.03 C5.4,15.36 2,12.28 2,8.5 C2,5.42 4.42,3 7.5,3 C9.24,3 10.91,3.81 12,5.09 C13.09,3.81 14.76,3 16.5,3 C19.58,3 22,5.42 22,8.5 C22,12.28 18.6,15.36 13.45,20.04 Z">
+                                            <Path.RenderTransform>
+                                                <ScaleTransform x:Name="heartScale" ScaleX="1" ScaleY="1"/>
+                                            </Path.RenderTransform>
+                                        </Path>
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Heart rate"
+                                                   Margin="0" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock x:Name="txtBPM" Style="{StaticResource BigNumber}"
+                                                   Foreground="#FF5C7A" Text="--"/>
+                                        <TextBlock Text="bpm" Foreground="#8593AD" FontSize="12"
+                                                   VerticalAlignment="Bottom" Margin="6,0,0,10"/>
+                                    </StackPanel>
+                                    <TextBlock x:Name="txtBpmStat" Style="{StaticResource StatText}"/>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="1">
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                        <Canvas Width="28" Height="28" Margin="0,0,6,0">
+                                            <Canvas.Triggers>
+                                                <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                                    <BeginStoryboard>
+                                                        <Storyboard RepeatBehavior="Forever" Duration="0:0:2.4">
+                                                            <DoubleAnimation Storyboard.TargetName="o2a" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" From="4" To="-9" Duration="0:0:1.4"/>
+                                                            <DoubleAnimation Storyboard.TargetName="o2a" Storyboard.TargetProperty="Opacity" From="1" To="0" Duration="0:0:1.4"/>
+                                                            <DoubleAnimation Storyboard.TargetName="o2b" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" From="4" To="-9" Duration="0:0:1.4" BeginTime="0:0:0.5"/>
+                                                            <DoubleAnimation Storyboard.TargetName="o2b" Storyboard.TargetProperty="Opacity" From="1" To="0" Duration="0:0:1.4" BeginTime="0:0:0.5"/>
+                                                            <DoubleAnimation Storyboard.TargetName="o2c" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" From="4" To="-9" Duration="0:0:1.4" BeginTime="0:0:1.0"/>
+                                                            <DoubleAnimation Storyboard.TargetName="o2c" Storyboard.TargetProperty="Opacity" From="1" To="0" Duration="0:0:1.4" BeginTime="0:0:1.0"/>
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </EventTrigger>
+                                            </Canvas.Triggers>
+
+                                            <!-- red blood cell: outline + dimple -->
+                                            <Ellipse Canvas.Left="2" Canvas.Top="9" Width="18" Height="18"
+                                                     Stroke="#FF5C7A" StrokeThickness="1.6"/>
+                                            <Ellipse Canvas.Left="7" Canvas.Top="14" Width="8" Height="8"
+                                                     Stroke="#FF5C7A" StrokeThickness="1.2" Opacity="0.55"/>
+
+                                            <!-- oxygen bubbles drifting up -->
+                                            <Ellipse x:Name="o2a" Canvas.Left="21" Canvas.Top="17" Width="5" Height="5"
+                                                     Stroke="#4CC9F0" StrokeThickness="1.3" Opacity="0">
+                                                <Ellipse.RenderTransform><TranslateTransform/></Ellipse.RenderTransform>
+                                            </Ellipse>
+                                            <Ellipse x:Name="o2b" Canvas.Left="23.5" Canvas.Top="11" Width="3.5" Height="3.5"
+                                                     Stroke="#4CC9F0" StrokeThickness="1.1" Opacity="0">
+                                                <Ellipse.RenderTransform><TranslateTransform/></Ellipse.RenderTransform>
+                                            </Ellipse>
+                                            <Ellipse x:Name="o2c" Canvas.Left="20" Canvas.Top="8" Width="3" Height="3"
+                                                     Stroke="#4CC9F0" StrokeThickness="1" Opacity="0">
+                                                <Ellipse.RenderTransform><TranslateTransform/></Ellipse.RenderTransform>
+                                            </Ellipse>
+                                        </Canvas>
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="SpO₂"
+                                                   Margin="0" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                    <TextBlock x:Name="txtSpO2" Style="{StaticResource BigNumber}"
+                                               Foreground="#4CC9F0" Text="--"/>
+                                    <TextBlock x:Name="txtSpO2Stat" Style="{StaticResource StatText}"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition/>
+                                    <ColumnDefinition Width="8"/>
+                                    <ColumnDefinition/>
+                                    <ColumnDefinition Width="8"/>
+                                    <ColumnDefinition/>
+                                </Grid.ColumnDefinitions>
+                                <Button x:Name="btnStartStop" Content="Start" HorizontalAlignment="Stretch"
+                                        Click="btnStartStop_Click"/>
+                                <Button x:Name="btnReset" Grid.Column="2" Content="Reset"
+                                        HorizontalAlignment="Stretch" Click="btnReset_Click"/>
+                                <Button x:Name="btnExport" Grid.Column="4" Content="Export"
+                                        HorizontalAlignment="Stretch" Click="btnExport_Click"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Send / receive -->
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource CardTitle}" Text="Send and receive"/>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Send"/>
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="8"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="txtSend" ui:ControlHelper.PlaceholderText="Text to send"/>
+                                <Button x:Name="btnSend" Grid.Column="2" Content="Send" Click="btnSend_Click"/>
+                            </Grid>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Last frame received"/>
+                            <TextBox x:Name="txtReceive" IsReadOnly="True"/>
+                        </StackPanel>
+                    </Border>
+
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- RIGHT COLUMN -->
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- PPG chart -->
+                <Border Grid.Row="0" Style="{StaticResource Card}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <Grid Margin="0,0,0,8">
+                            <TextBlock Style="{StaticResource CardTitle}" Text="PPG waveform" Margin="0" VerticalAlignment="Center"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                <ToggleButton x:Name="chkFreeze" Content="Freeze" Margin="0,0,8,0"
+                                              Checked="chkFreeze_Changed" Unchecked="chkFreeze_Changed"/>
+                                <Button x:Name="btnClearPins" Content="Clear pins" Click="btnClearPins_Click"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <sp:WpfPlot x:Name="PpgPlot" Grid.Row="1"/>
+
+                        <StackPanel Grid.Row="2" Margin="0,10,0,0">
+                            <TextBlock x:Name="txtHover" FontSize="13" Foreground="#E6EBF5"
+                                       FontFamily="Consolas" Text="Move the mouse over the chart to read values."/>
+                            <TextBlock x:Name="txtPins" FontSize="13" Foreground="#FFC857"
+                                       FontFamily="Consolas" Margin="0,4,0,0"
+                                       Text="Click on the chart to pin a line and compare."/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Test -->
+                <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Button x:Name="btnTest" Content="Run test" Width="110" Click="btnTest_Click"/>
+
+                        <StackPanel Grid.Column="1" Margin="16,0" VerticalAlignment="Center">
+                            <TextBlock x:Name="txtTestPct" Text="0%" FontSize="12" Foreground="#8593AD"
+                                       Margin="0,0,0,4"/>
+                            <ProgressBar x:Name="progressTest" Minimum="0" Maximum="1000" Height="6"/>
+                        </StackPanel>
+
+                        <Border x:Name="testResultPill" Grid.Column="2" CornerRadius="8" Background="#243049"
+                                Padding="14,6" VerticalAlignment="Center">
+                            <TextBlock x:Name="txtTestResult" Text="--" FontFamily="Consolas" FontSize="13"/>
+                        </Border>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+    </Grid>
+</Window>
