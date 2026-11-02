@@ -146,7 +146,7 @@
 
                                 <StackPanel Grid.Column="0">
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                                        <Path Width="22" Height="22" Stretch="Uniform" Margin="0,0,8,0"
+                                        <Path Width="22" Height="28" Stretch="Uniform" Margin="0,0,8,0"
                                               Stroke="#FF5C7A" StrokeThickness="1.6" StrokeLineJoin="Round"
                                               RenderTransformOrigin="0.5,0.5"
                                               Data="M12,21.35 L10.55,20.03 C5.4,15.36 2,12.28 2,8.5 C2,5.42 4.42,3 7.5,3 C9.24,3 10.91,3.81 12,5.09 C13.09,3.81 14.76,3 16.5,3 C19.58,3 22,5.42 22,8.5 C22,12.28 18.6,15.36 13.45,20.04 Z">
