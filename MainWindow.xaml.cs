@@ -650,8 +650,8 @@ namespace MAX30102_WPF
 
             ClearChartData();
             ClearStats();
-            txtBPM.Text = "--";
-            txtSpO2.Text = "--";
+            txtBPM.Text = "---";
+            txtSpO2.Text = "---";
             btnExport.IsEnabled = false;
         }
 

@@ -39,6 +39,26 @@
             <Setter Property="Foreground" Value="#8593AD"/>
             <Setter Property="LineHeight" Value="18"/>
         </Style>
+        <Style x:Key="ChevronToggle" TargetType="ToggleButton">
+            <Setter Property="Width" Value="28"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="bd" Background="Transparent" CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#243049"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Grid Margin="20,8,20,20">
@@ -139,7 +159,7 @@
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock x:Name="txtBPM" Style="{StaticResource BigNumber}"
-                                                   Foreground="#FF5C7A" Text="--"/>
+                                                   Foreground="#FF5C7A" Text="---"/>
                                         <TextBlock Text="bpm" Foreground="#8593AD" FontSize="12"
                                                    VerticalAlignment="Bottom" Margin="6,0,0,10"/>
                                     </StackPanel>
@@ -188,7 +208,7 @@
                                                    Margin="0" VerticalAlignment="Center"/>
                                     </StackPanel>
                                     <TextBlock x:Name="txtSpO2" Style="{StaticResource BigNumber}"
-                                               Foreground="#4CC9F0" Text="--"/>
+                                               Foreground="#4CC9F0" Text="---"/>
                                     <TextBlock x:Name="txtSpO2Stat" Style="{StaticResource StatText}"/>
                                 </StackPanel>
                             </Grid>
@@ -214,7 +234,44 @@
                     <!-- Send / receive -->
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
-                            <TextBlock Style="{StaticResource CardTitle}" Text="Send and receive"/>
+                            <Grid>
+                                <TextBlock Style="{StaticResource CardTitle}" Text="Send and receive"
+                                           Margin="0" VerticalAlignment="Center"/>
+                                <ToggleButton x:Name="tglSend" Style="{StaticResource ChevronToggle}"
+                                              HorizontalAlignment="Right" IsChecked="False"
+                                              ToolTip="Show / hide">
+                                    <Path Width="12" Height="7" Stretch="Uniform" Stroke="#8593AD"
+                                          StrokeThickness="1.8" StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                          RenderTransformOrigin="0.5,0.5" Data="M1,1 L7,7 L13,1">
+                                        <Path.Style>
+                                            <Style TargetType="Path">
+                                                <Setter Property="RenderTransform">
+                                                    <Setter.Value><RotateTransform Angle="0"/></Setter.Value>
+                                                </Setter>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Value="True">
+                                                        <Setter Property="RenderTransform">
+                                                            <Setter.Value><RotateTransform Angle="180"/></Setter.Value>
+                                                        </Setter>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Path.Style>
+                                    </Path>
+                                </ToggleButton>
+                            </Grid>
+                            <StackPanel Margin="0,12,0,0">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsChecked, ElementName=tglSend}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
                             <TextBlock Style="{StaticResource FieldLabel}" Text="Send"/>
                             <Grid Margin="0,0,0,10">
                                 <Grid.ColumnDefinitions>
@@ -227,6 +284,7 @@
                             </Grid>
                             <TextBlock Style="{StaticResource FieldLabel}" Text="Last frame received"/>
                             <TextBox x:Name="txtReceive" IsReadOnly="True"/>
+                            </StackPanel>
                         </StackPanel>
                     </Border>
 
@@ -258,7 +316,7 @@
                             </StackPanel>
                         </Grid>
 
-                        <sp:WpfPlot x:Name="PpgPlot" Grid.Row="1"/>
+                        <sp:WpfPlot x:Name="PpgPlot" Margin="0,32,0,8" Grid.RowSpan="2"/>
 
                         <StackPanel Grid.Row="2" Margin="0,10,0,0">
                             <TextBlock x:Name="txtHover" FontSize="13" Foreground="#E6EBF5"
