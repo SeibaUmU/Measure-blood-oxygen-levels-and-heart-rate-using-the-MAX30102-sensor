@@ -650,8 +650,8 @@ namespace MAX30102_WPF
 
             ClearChartData();
             ClearStats();
-            txtBPM.Text = "---";
-            txtSpO2.Text = "---";
+            txtBPM.Text = "--";
+            txtSpO2.Text = "--";
             btnExport.IsEnabled = false;
         }
 
@@ -796,6 +796,16 @@ namespace MAX30102_WPF
                 {
                     byte bpm = frame[2];
                     byte spo2 = frame[3];
+
+                    // SW-12: Kiểm tra mã lỗi cảm biến (0xFF = 255)
+                    if (bpm == 0xFF || spo2 == 0xFF)
+                    {
+                        txtBPM.Text = "ERR";
+                        txtSpO2.Text = "ERR";
+                        SetHeartRate(0);
+                        return;
+                    }
+
                     txtBPM.Text = bpm.ToString();
                     SetHeartRate(bpm);
                     txtSpO2.Text = spo2 + "%";
