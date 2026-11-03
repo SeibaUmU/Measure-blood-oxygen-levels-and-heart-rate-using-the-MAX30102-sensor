@@ -159,7 +159,7 @@
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock x:Name="txtBPM" Style="{StaticResource BigNumber}"
-                                                   Foreground="#FF5C7A" Text="---"/>
+                                                   Foreground="#FF5C7A" Text="--"/>
                                         <TextBlock Text="bpm" Foreground="#8593AD" FontSize="12"
                                                    VerticalAlignment="Bottom" Margin="6,0,0,10"/>
                                     </StackPanel>
@@ -188,7 +188,7 @@
                                             <Ellipse Canvas.Left="2" Canvas.Top="9" Width="18" Height="18"
                                                      Stroke="#FF5C7A" StrokeThickness="1.6"/>
                                             <Ellipse Canvas.Left="7" Canvas.Top="14" Width="8" Height="8"
-                                                     Stroke="#FF5C7A" StrokeThickness="1.2" Opacity="0.55"/>
+                                                     Stroke="#4CC9F0" StrokeThickness="1.2" Opacity="0.55"/>
 
                                             <!-- oxygen bubbles drifting up -->
                                             <Ellipse x:Name="o2a" Canvas.Left="21" Canvas.Top="17" Width="5" Height="5"
@@ -208,7 +208,7 @@
                                                    Margin="0" VerticalAlignment="Center"/>
                                     </StackPanel>
                                     <TextBlock x:Name="txtSpO2" Style="{StaticResource BigNumber}"
-                                               Foreground="#4CC9F0" Text="---"/>
+                                               Foreground="#4CC9F0" Text="--"/>
                                     <TextBlock x:Name="txtSpO2Stat" Style="{StaticResource StatText}"/>
                                 </StackPanel>
                             </Grid>
