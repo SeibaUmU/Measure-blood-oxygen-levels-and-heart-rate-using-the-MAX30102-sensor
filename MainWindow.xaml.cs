@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Globalization;
 using System.Linq;
 using System.Text;
@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using Microsoft.Win32;
 using MAX30102_WPF.Communication;
+using MAX30102_WPF.Logging;
 using MAX30102_WPF.Measurement;
 using MAX30102_WPF.Protocol;
 using MAX30102_WPF.Reporting;
@@ -19,7 +20,8 @@ namespace MAX30102_WPF
     /// Cửa sổ chính: chỉ chứa phần giao diện (xử lý nút bấm, cập nhật chữ / màu).
     /// Mọi việc khác được giao cho các module:
     ///   Communication (cổng COM), Protocol (khung dữ liệu), Measurement (thống kê / lọc PPG),
-    ///   Reporting (xuất file), Testing (test loopback), Ui (biểu đồ, trái tim đập).
+    ///   Reporting (xuất file), Testing (test loopback), Logging (log Send / Receive),
+    ///   Ui (biểu đồ, trái tim đập, bảng log).
     /// </summary>
     public partial class MainWindow : Window
     {
@@ -31,6 +33,8 @@ namespace MAX30102_WPF
         private readonly LoopbackTest loopbackTest;
         private readonly HeartBeatAnimator heartAnimator;
         private readonly PpgChart ppgChart;
+        private readonly LogService log = new LogService();
+        private readonly LogPanel logPanel;
 
         // ===== START / STOP =====
         private bool isMeasuring;
@@ -47,6 +51,7 @@ namespace MAX30102_WPF
             InitializeComponent();
 
             serial.FrameReceived += OnFrameReceived;
+            log.Attach(serial);   // ghi log mọi khung gửi / nhận
 
             loopbackTest = new LoopbackTest(serial);
             loopbackTest.ProgressChanged += UpdateTestProgress;
@@ -54,6 +59,7 @@ namespace MAX30102_WPF
 
             heartAnimator = new HeartBeatAnimator(heartScale);
             ppgChart = new PpgChart(PpgPlot, txtHover, txtPins, chkFreeze);
+            logPanel = new LogPanel(log, dgLog, btnClearLog, txtLogInfo);
 
             InitComboBoxes();
             SetupUIInitialState();
