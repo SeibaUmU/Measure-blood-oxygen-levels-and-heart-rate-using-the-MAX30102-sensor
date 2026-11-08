@@ -454,7 +454,7 @@
                         <StackPanel Grid.Column="1" Margin="16,0" VerticalAlignment="Center">
                             <TextBlock x:Name="txtTestPct" Text="0%" FontSize="12" Foreground="#8593AD"
                                        Margin="0,0,0,4"/>
-                            <ProgressBar x:Name="progressTest" Minimum="0" Maximum="1000" Height="6"/>
+                            <ProgressBar x:Name="progressTest" Minimum="0" Height="6"/>
                         </StackPanel>
 
                         <Border x:Name="testResultPill" Grid.Column="2" CornerRadius="8" Background="#243049"

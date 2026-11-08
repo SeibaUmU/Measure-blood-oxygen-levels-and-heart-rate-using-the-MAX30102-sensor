@@ -8,8 +8,8 @@ namespace MAX30102_WPF.Communication
     /// <summary>
     /// Bao toàn bộ việc làm việc với cổng COM: mở / đóng, gửi khung, nhận byte và tách khung.
     /// MainWindow chỉ gọi lớp này, không đụng trực tiếp tới <see cref="SerialPort"/>.
-    /// <para><see cref="FrameReceived"/> và <see cref="FrameRejected"/> được gọi từ luồng của SerialPort,
-    /// phải dùng Dispatcher khi cập nhật giao diện. <see cref="FrameSent"/> được gọi ngay trên luồng gọi <see cref="Send"/>.</para>
+    /// <para><see cref="FrameReceived"/> được gọi từ luồng của SerialPort, phải dùng Dispatcher khi cập nhật giao diện.
+    /// <see cref="FrameSent"/> được gọi ngay trên luồng gọi <see cref="Send"/>.</para>
     /// </summary>
     public sealed class SerialService : IDisposable
     {
@@ -18,18 +18,15 @@ namespace MAX30102_WPF.Communication
 
         public SerialService()
         {
-            parser.FrameParsed += frame => { Action<DataFrame> h = FrameReceived; if (h != null) h(frame); };
-            parser.FrameRejected += (raw, reason) => { Action<byte[], RejectReason> h = FrameRejected; if (h != null) h(raw, reason); };
+            port.DataReceived += OnDataReceived;   // đăng ký một lần; đóng cổng là sự kiện tự dừng
+            parser.FrameParsed += frame => FrameReceived?.Invoke(frame);
         }
 
         /// <summary>Nhận được một khung hợp lệ.</summary>
         public event Action<DataFrame> FrameReceived;
 
-        /// <summary>Nhận được một khung sai footer / CRC (byte thô, lý do).</summary>
-        public event Action<byte[], RejectReason> FrameRejected;
-
-        /// <summary>Vừa gửi xong một khung (byte thô).</summary>
-        public event Action<byte[]> FrameSent;
+        /// <summary>Vừa gửi xong một khung.</summary>
+        public event Action<DataFrame> FrameSent;
 
         public bool IsOpen { get { return port.IsOpen; } }
 
@@ -60,9 +57,6 @@ namespace MAX30102_WPF.Communication
             port.DtrEnable = false;
             port.RtsEnable = false;
 
-            port.DataReceived -= OnDataReceived;
-            port.DataReceived += OnDataReceived;
-
             parser.Reset();   // bỏ byte dư của lần kết nối trước
             port.Open();
         }
@@ -70,19 +64,16 @@ namespace MAX30102_WPF.Communication
         /// <summary>Đóng cổng (không làm gì nếu cổng đang đóng).</summary>
         public void Close()
         {
-            port.DataReceived -= OnDataReceived;
             if (port.IsOpen) port.Close();
         }
 
-        /// <summary>Gửi nguyên khung đã dựng sẵn (xem <see cref="FrameBuilder"/>).</summary>
-        public void Send(byte[] frame)
+        /// <summary>Gửi nguyên khung đã dựng sẵn (xem các hàm dựng khung trong <see cref="DataFrame"/>).</summary>
+        public void Send(DataFrame frame)
         {
             if (!port.IsOpen) throw new InvalidOperationException("Cổng COM chưa được mở.");
 
-            port.Write(frame, 0, frame.Length);
-
-            Action<byte[]> h = FrameSent;
-            if (h != null) h(frame);
+            port.Write(frame.Raw, 0, frame.Raw.Length);
+            FrameSent?.Invoke(frame);
         }
 
         public void Dispose()

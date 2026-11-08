@@ -56,9 +56,6 @@ namespace MAX30102_WPF.Testing
         /// <summary>Số gói đã gửi (1..PacketCount), để cập nhật thanh tiến trình.</summary>
         public event Action<int> ProgressChanged;
 
-        /// <summary>Vừa gửi một khung (kể cả khung điều khiển), để hiển thị lên giao diện.</summary>
-        public event Action<byte[]> FrameSent;
-
         /// <summary>Đưa vào mọi khung nhận được; chỉ khung test lúc đang chạy mới được tính.</summary>
         public void HandleFrame(DataFrame frame)
         {
@@ -80,13 +77,12 @@ namespace MAX30102_WPF.Testing
 
             try
             {
-                SendIfOpen(FrameBuilder.BuildTestControl(ProtocolConst.TestBegin));
+                SendIfOpen(DataFrame.TestControl(ProtocolConst.TestBegin));
                 await Task.Delay(StartDelayMs);
 
                 for (int i = 1; i <= PacketCount; i++)
                 {
-                    if (!serial.IsOpen) break;
-                    SendIfOpen(FrameBuilder.BuildTest((ushort)i));
+                    if (!SendIfOpen(DataFrame.Test((ushort)i))) break;   // cổng đã đóng giữa chừng
 
                     Action<int> progress = ProgressChanged;
                     if (progress != null) progress(i);
@@ -101,7 +97,7 @@ namespace MAX30102_WPF.Testing
                     elapsedMs += PollIntervalMs;
                 }
 
-                SendIfOpen(FrameBuilder.BuildTestControl(ProtocolConst.TestEnd));
+                SendIfOpen(DataFrame.TestControl(ProtocolConst.TestEnd));
 
                 List<int> lost = new List<int>();
                 for (int i = 1; i <= PacketCount; i++)
@@ -116,15 +112,13 @@ namespace MAX30102_WPF.Testing
             }
         }
 
-        // Cổng đã đóng giữa chừng thì bỏ qua im lặng (giữ đúng hành vi bản cũ).
-        private void SendIfOpen(byte[] frame)
+        // Cổng đã đóng giữa chừng thì bỏ qua im lặng (giữ đúng hành vi bản cũ); trả về false nếu không gửi.
+        private bool SendIfOpen(DataFrame frame)
         {
-            if (!serial.IsOpen) return;
+            if (!serial.IsOpen) return false;
 
             serial.Send(frame);
-
-            Action<byte[]> sent = FrameSent;
-            if (sent != null) sent(frame);
+            return true;
         }
     }
 }

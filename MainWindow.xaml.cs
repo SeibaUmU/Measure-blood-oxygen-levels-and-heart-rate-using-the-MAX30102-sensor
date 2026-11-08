@@ -55,14 +55,14 @@ namespace MAX30102_WPF
 
             loopbackTest = new LoopbackTest(serial);
             loopbackTest.ProgressChanged += UpdateTestProgress;
-            loopbackTest.FrameSent += frame => txtSend.Text = BitConverter.ToString(frame);
 
             heartAnimator = new HeartBeatAnimator(heartScale);
             ppgChart = new PpgChart(PpgPlot, txtHover, txtPins, chkFreeze);
             logPanel = new LogPanel(log, dgLog, btnClearLog, txtLogInfo);
 
             InitComboBoxes();
-            SetupUIInitialState();
+            ApplyConnectionState(false);
+            btnExport.IsEnabled = false;
             ClearStats();
             UpdateStartStopStyle();
             btnStartStop.IsEnabledChanged += (s, e) => UpdateStartStopStyle();
@@ -168,21 +168,42 @@ namespace MAX30102_WPF
             else cboPort.SelectedIndex = -1;
         }
 
-        private void SetupUIInitialState()
-        {
-            btnConnect.IsEnabled = true;
-            btnDisconnect.IsEnabled = false;
-            btnStartStop.IsEnabled = false;
-            btnTest.IsEnabled = false;
-            btnExport.IsEnabled = false;
-            btnReset.IsEnabled = false;
-        }
-
         private void SetStatus(bool connected)
         {
             txtStatus.Text = connected ? "Connected" : "Disconnected";
             statusPill.Background = Hex(connected ? "#14402B" : "#4A1D2A");
             statusDot.Fill = Hex(connected ? "#3DDC97" : "#FF5C7A");
+        }
+
+        // Mọi thay đổi giao diện theo trạng thái kết nối nằm ở đây: lúc khởi động, Connect, Disconnect
+        // (và sau này là phát hiện rút cáp, B3). btnExport không nằm trong đây vì ngắt kết nối xong
+        // vẫn được xuất dữ liệu đã đo; nơi gọi tự đặt khi cần.
+        private void ApplyConnectionState(bool connected)
+        {
+            SetStatus(connected);
+
+            if (!connected)
+            {
+                heartAnimator.SetRate(0);
+                SetMeasuring(false);   // đặt trước khi khóa nút Start / Stop để màu nút cập nhật đúng
+            }
+
+            btnConnect.IsEnabled = !connected;
+            btnDisconnect.IsEnabled = connected;
+            btnStartStop.IsEnabled = connected;
+            btnTest.IsEnabled = connected;
+            btnReset.IsEnabled = connected;
+            cboPort.IsEnabled = !connected;
+            cboBaudRate.IsEnabled = !connected;
+        }
+
+        // Chưa kết nối thì cảnh báo và trả về false. action là việc định làm: "gửi", "gửi lệnh", "thực hiện Test".
+        private bool RequireConnection(string action)
+        {
+            if (serial.IsOpen) return true;
+
+            MessageBox.Show("Vui lòng CONNECT cổng COM trước khi " + action + "!", "Cảnh báo", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
         }
 
         private void btnConnect_Click(object sender, RoutedEventArgs e)
@@ -191,27 +212,14 @@ namespace MAX30102_WPF
             {
                 if (cboPort.SelectedItem == null) return;
 
-                if (serial.IsOpen)
-                {
-                    MessageBox.Show("Cổng COM đang được mở rồi!", "Thông báo", MessageBoxButton.OK, MessageBoxImage.Information);
-                    return;
-                }
-
                 serial.Open(new SerialSettings
                 {
                     PortName = cboPort.SelectedItem.ToString(),
                     BaudRate = int.Parse(cboBaudRate.SelectedItem.ToString())
                 });
 
-                SetStatus(true);
-                btnConnect.IsEnabled = false;
-                btnDisconnect.IsEnabled = true;
-                btnStartStop.IsEnabled = true;
-                btnTest.IsEnabled = true;
-                btnReset.IsEnabled = true;
+                ApplyConnectionState(true);
                 btnExport.IsEnabled = false;
-                cboPort.IsEnabled = false;
-                cboBaudRate.IsEnabled = false;
             }
             catch (Exception ex)
             {
@@ -224,19 +232,7 @@ namespace MAX30102_WPF
             try
             {
                 serial.Close();
-
-                SetStatus(false);
-                heartAnimator.SetRate(0);
-
-                btnConnect.IsEnabled = true;
-                btnDisconnect.IsEnabled = false;
-                SetMeasuring(false);
-                btnStartStop.IsEnabled = false;
-                btnTest.IsEnabled = false;
-                btnReset.IsEnabled = false;
-
-                cboPort.IsEnabled = true;
-                cboBaudRate.IsEnabled = true;
+                ApplyConnectionState(false);
             }
             catch (Exception ex)
             {
@@ -249,11 +245,7 @@ namespace MAX30102_WPF
         // =====================================================================
         private void btnSend_Click(object sender, RoutedEventArgs e)
         {
-            if (!serial.IsOpen)
-            {
-                MessageBox.Show("Vui lòng CONNECT cổng COM trước khi gửi!", "Cảnh báo", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
+            if (!RequireConnection("gửi")) return;
 
             string inputData = txtSend.Text;
             if (string.IsNullOrEmpty(inputData)) return;
@@ -261,7 +253,7 @@ namespace MAX30102_WPF
             try
             {
                 byte[] payload = Encoding.ASCII.GetBytes(inputData);
-                serial.Send(FrameBuilder.BuildCommand(payload));
+                serial.Send(DataFrame.Command(payload));
             }
             catch (Exception ex)
             {
@@ -271,17 +263,11 @@ namespace MAX30102_WPF
 
         private bool SendCommand(byte command)
         {
-            if (!serial.IsOpen)
-            {
-                MessageBox.Show("Vui lòng CONNECT cổng COM trước khi gửi lệnh!", "Cảnh báo", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return false;
-            }
+            if (!RequireConnection("gửi lệnh")) return false;
 
             try
             {
-                byte[] frame = FrameBuilder.BuildCommand(command);
-                serial.Send(frame);
-                txtSend.Text = BitConverter.ToString(frame);
+                serial.Send(DataFrame.Command(command));
                 return true;
             }
             catch (Exception ex)
@@ -430,12 +416,9 @@ namespace MAX30102_WPF
 
         private async void btnTest_Click(object sender, RoutedEventArgs e)
         {
-            if (!serial.IsOpen)
-            {
-                MessageBox.Show("Vui lòng CONNECT cổng COM trước khi thực hiện Test!", "Cảnh báo", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
+            if (!RequireConnection("thực hiện Test")) return;
 
+            progressTest.Maximum = LoopbackTest.PacketCount;
             UpdateTestProgress(0);
 
             btnTest.IsEnabled = false;

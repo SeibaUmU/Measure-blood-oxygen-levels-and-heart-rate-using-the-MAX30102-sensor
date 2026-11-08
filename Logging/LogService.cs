@@ -62,13 +62,13 @@ namespace MAX30102_WPF.Logging
 
         /// <summary>
         /// Tự ghi log mọi khung gửi / nhận của <paramref name="serial"/>.
-        /// Gửi lấy từ <see cref="SerialService.FrameSent"/> (một lần cho mỗi khung, không trùng với sự kiện FrameSent của test),
+        /// Gửi lấy từ <see cref="SerialService.FrameSent"/> (một lần cho mỗi khung, kể cả khung do test gửi),
         /// nhận lấy từ <see cref="SerialService.FrameReceived"/> (chỉ khung hợp lệ).
         /// </summary>
         public void Attach(SerialService serial)
         {
             if (serial == null) throw new ArgumentNullException("serial");
-            serial.FrameSent += frame => AddSend(frame);
+            serial.FrameSent += frame => AddSend(frame.Raw);
             serial.FrameReceived += frame => AddReceive(frame.Raw);
         }
 
