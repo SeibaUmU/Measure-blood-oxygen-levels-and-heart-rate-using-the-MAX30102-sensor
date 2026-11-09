@@ -30,10 +30,8 @@ namespace MAX30102_WPF.Testing
     /// PC kiểm tra từng số có quay về đúng một lần hay không.
     /// <para>Lớp này chạy trên luồng UI: <see cref="RunAsync"/> phải được gọi từ luồng UI và
     /// <see cref="HandleFrame"/> cũng phải được gọi trên luồng UI (qua Dispatcher).</para>
-    /// <para>Đây là bản "giữ nguyên hành vi cũ" của bước tách lớp; khi làm SW-06/07 sẽ thay phần
-    /// sinh dữ liệu và so sánh bên trong.</para>
     /// </summary>
-    public sealed class LoopbackTest
+    public sealed class  LoopbackTest
     {
         public const int PacketCount = 1000;
 
@@ -89,6 +87,7 @@ namespace MAX30102_WPF.Testing
 
                     await Task.Delay(SendIntervalMs);
                 }
+
 
                 int elapsedMs = 0;
                 while (elapsedMs < TimeoutMs && successCount < PacketCount)
