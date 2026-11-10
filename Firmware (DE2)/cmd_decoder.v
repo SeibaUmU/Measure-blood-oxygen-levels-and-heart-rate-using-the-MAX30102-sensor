@@ -18,7 +18,7 @@ module cmd_decoder(
             if (byte_valid) begin
                 case (state)
                     WAIT_HEADER: state <= (byte_in == 8'h40) ? WAIT_TYPE : WAIT_HEADER;
-                    WAIT_TYPE:   state <= (byte_in == 8'h02) ? WAIT_DATA : WAIT_HEADER;
+                    WAIT_TYPE: state <= (byte_in == 8'h02) ? WAIT_DATA : ((byte_in == 8'h40) ? WAIT_TYPE : WAIT_HEADER);
                     WAIT_DATA:   begin cmd_code <= byte_in; state <= WAIT_FOOTER; end
                     WAIT_FOOTER: state <= (byte_in == 8'h26) ? WAIT_CRC : WAIT_HEADER;
                     WAIT_CRC: begin

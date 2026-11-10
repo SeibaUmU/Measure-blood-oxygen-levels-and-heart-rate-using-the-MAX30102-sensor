@@ -1,0 +1,455 @@
+#include <Arduino.h>
+#include <Wire.h>
+#include "spo2_algorithm.h"
+
+// ===================================== PIN MAP (CHUẨN PHI.INO) =====================================
+static const int PIN_STATUS_LED = 10;
+static const int PIN_BOOT_BTN   = 0;
+static const int PIN_I2C_SDA    = 8;
+static const int PIN_I2C_SCL    = 9;
+static const int PIN_U1_TX      = 17;
+static const int PIN_U1_RX      = 16;
+
+#define UART_BAUD 9600
+
+// Dùng khối UART1 giống hệt Phi.ino
+HardwareSerial RS232(1);
+bool wireStarted = false;
+bool sensorOk    = false;
+
+// ===================================== THANH GHI MAX30102 (NGUYÊN BẢN PHI.INO) =====================================
+static const uint8_t MAX_ADDR        = 0x57;
+static const uint8_t REG_INTR_EN1    = 0x02;
+static const uint8_t REG_INTR_EN2    = 0x03;
+static const uint8_t REG_FIFO_WR     = 0x04;
+static const uint8_t REG_FIFO_OVF    = 0x05;
+static const uint8_t REG_FIFO_RD     = 0x06;
+static const uint8_t REG_FIFO_DATA   = 0x07;
+static const uint8_t REG_FIFO_CFG    = 0x08;
+static const uint8_t REG_MODE_CFG    = 0x09;
+static const uint8_t REG_SPO2_CFG    = 0x0A;
+static const uint8_t REG_LED1_PA     = 0x0C;   // RED
+static const uint8_t REG_LED2_PA     = 0x0D;   // IR
+static const uint8_t REG_REV_ID      = 0xFE;
+static const uint8_t REG_PART_ID     = 0xFF;
+
+static const uint8_t  MAX_LED_PA     = 0x24;   // ~7.2 mA giống Phi.ino
+static const uint32_t FINGER_TH      = 50000;  // IR > 50000 = có ngón tay
+
+// ===================================== BỘ ĐỆM & BIẾN THUẬT TOÁN ESP32.INO =====================================
+#define BUFFER_LENGTH 100
+uint32_t irBuffer[BUFFER_LENGTH];
+uint32_t redBuffer[BUFFER_LENGTH];
+uint32_t tsBuffer[BUFFER_LENGTH];   // micros() lúc nhận từng mẫu
+int      bufCount     = 0;          // Số mẫu hiện có trong buffer (0..100)
+int      newSampleCnt = 0;          // Đếm đủ 25 mẫu mới thì tính lại BPM/SpO2
+
+float    bpmAvg       = 0;          // Nhịp tim đã làm mượt của esp32.ino
+int32_t  spo2         = 0;
+int8_t   validSPO2    = 0;
+int32_t  heartRate    = 0;
+int8_t   validHeartRate = 0;
+
+int32_t  lastSpo2     = 0;          // SpO2 hợp lệ gần nhất từ thư viện Maxim (0 = chưa có)
+
+bool     measuring    = false;      // false = chờ lệnh Start ('1') từ C# / DE2
+bool     resetFlag    = false;
+
+// ===================================== DRIVER MAX30102 (NGUYÊN BẢN TỪ PHI.INO) =====================================
+void startWire() {
+  Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL, 400000);
+  wireStarted = true;
+}
+
+bool maxWrite(uint8_t reg, uint8_t val) {
+  Wire.beginTransmission(MAX_ADDR);
+  Wire.write(reg);
+  Wire.write(val);
+  return Wire.endTransmission() == 0;
+}
+
+bool maxRead(uint8_t reg, uint8_t* buf, uint8_t len) {
+  Wire.beginTransmission(MAX_ADDR);
+  Wire.write(reg);
+  if (Wire.endTransmission(false) != 0) return false;
+  uint8_t n = Wire.requestFrom((uint8_t)MAX_ADDR, len);
+  if (n != len) return false;
+  for (uint8_t i = 0; i < len; i++) buf[i] = Wire.read();
+  return true;
+}
+
+int maxRead8(uint8_t reg) {
+  uint8_t v;
+  return maxRead(reg, &v, 1) ? v : -1;
+}
+
+void maxClearFifo() {
+  maxWrite(REG_FIFO_WR, 0);
+  maxWrite(REG_FIFO_OVF, 0);
+  maxWrite(REG_FIFO_RD, 0);
+}
+
+bool maxInit() {
+  if (!maxWrite(REG_MODE_CFG, 0x40)) return false;          // soft reset
+  uint32_t t = millis();
+  while (millis() - t < 100) {
+    int m = maxRead8(REG_MODE_CFG);
+    if (m >= 0 && !(m & 0x40)) break;
+    delay(2);
+  }
+  bool ok = true;
+  ok &= maxWrite(REG_INTR_EN1, 0x00);                       // INT không nối về MCU
+  ok &= maxWrite(REG_INTR_EN2, 0x00);
+  ok &= maxWrite(REG_FIFO_CFG, 0x5F);                       // SMP_AVE=4, rollover, A_FULL=15 -> 100/4 = 25 sps (khớp FreqS=25 của thư viện Maxim)
+  ok &= maxWrite(REG_SPO2_CFG, 0x27);                       // ADC 4096nA, 100sps, 411us/18bit
+  ok &= maxWrite(REG_LED1_PA, MAX_LED_PA);
+  ok &= maxWrite(REG_LED2_PA, MAX_LED_PA);
+  ok &= maxWrite(REG_MODE_CFG, 0x03);                       // SpO2 mode (RED + IR)
+  maxClearFifo();
+  return ok;
+}
+
+int maxAvailable() {
+  int wr = maxRead8(REG_FIFO_WR), rd = maxRead8(REG_FIFO_RD);
+  if (wr < 0 || rd < 0) return 0;
+  return (wr - rd) & 0x1F;
+}
+
+bool maxReadSample(uint32_t& red, uint32_t& ir) {
+  uint8_t b[6];
+  if (!maxRead(REG_FIFO_DATA, b, 6)) return false;
+  red = (((uint32_t)b[0] << 16) | ((uint32_t)b[1] << 8) | b[2]) & 0x3FFFF;
+  ir  = (((uint32_t)b[3] << 16) | ((uint32_t)b[4] << 8) | b[5]) & 0x3FFFF;
+  return true;
+}
+
+// Quy trình quét I2C + khởi tạo MAX30102 giống hệt testI2c() & testMax30102() trong Phi.ino
+bool initSensorPhiStyle() {
+  if (wireStarted) {
+    Wire.end();
+    wireStarted = false;
+  }
+  pinMode(PIN_I2C_SDA, INPUT);
+  pinMode(PIN_I2C_SCL, INPUT);
+  delay(5);
+  startWire();
+
+  bool hasMax = false;
+  for (uint8_t a = 1; a < 127; a++) {
+    Wire.beginTransmission(a);
+    if (Wire.endTransmission() == 0) {
+      if (a == MAX_ADDR) hasMax = true;
+    }
+  }
+  if (!hasMax) return false;
+  if (maxRead8(REG_PART_ID) != 0x15) return false;
+  return maxInit();
+}
+
+// ===================================== GIAO THỨC KHUNG TRUYỀN & CẦU NỐI UART =====================================
+void sendFrameA(uint8_t hr, uint8_t spo2_val) {
+  uint8_t buf[6];
+  buf[0] = 0x40; // '@'
+  buf[1] = 0x01;
+  buf[2] = hr;
+  buf[3] = spo2_val;
+  buf[4] = 0x26; // '&'
+  buf[5] = buf[1] ^ buf[2] ^ buf[3] ^ buf[4];
+  RS232.write(buf, 6);
+}
+
+void sendFrameC(uint16_t ppg_raw) {
+  uint8_t buf[6];
+  buf[0] = 0x40; // '@'
+  buf[1] = 0x03;
+  buf[2] = (ppg_raw >> 8) & 0xFF;
+  buf[3] = ppg_raw & 0xFF;
+  buf[4] = 0x26; // '&'
+  buf[5] = buf[1] ^ buf[2] ^ buf[3] ^ buf[4];
+  RS232.write(buf, 6);
+}
+
+void applyCommand(uint8_t cmd) {
+  if (cmd == '1') {            // 0x31: Bắt đầu đo
+    measuring = true;
+    resetFlag = true;
+  } else if (cmd == '0') {     // 0x30: Dừng đo
+    measuring = false;
+  } else if (cmd == 'R') {     // 0x52: Reset thuật toán
+    resetFlag = true;
+  }
+  else if (cmd == 'S') {       // 0x53: Đọc 1 lần (FW-12)
+    uint8_t hrOut   = (uint8_t)constrain((int)(bpmAvg + 0.5f), 0, 255);
+    uint8_t spo2Out = (hrOut > 0) ? (uint8_t)constrain(lastSpo2, 0, 100) : 0;
+    sendFrameA(hrOut, spo2Out);
+  }
+}
+
+void serviceBridge() {
+  // 1. CHIỀU ĐI: Laptop C# (Serial) -> ESP32 -> DE2 (RS232)
+  static uint8_t pc_state = 0;
+  static uint8_t pc_buf[5];
+
+  while (Serial.available()) {
+    uint8_t b = Serial.read();
+    switch (pc_state) {
+      case 0:
+        if (b == 0x40) { pc_buf[0] = b; pc_state = 1; }
+        break;
+      case 1:
+        if (b == 0x02 || b == 0x04) { pc_buf[1] = b; pc_state = 2; }
+        else pc_state = (b == 0x40) ? 1 : 0;
+        break;
+      case 2:
+        pc_buf[2] = b;
+        pc_state = 3;
+        break;
+      case 3:
+        pc_buf[3] = b;
+        pc_state = 4;
+        break;
+      case 4:
+        pc_buf[4] = b;
+        RS232.write(pc_buf, 5);   // Chỉ chuyển tiếp xuống DE2 (master); lệnh chỉ có hiệu lực khi DE2 echo frame B về
+        pc_state = 0;
+        break;
+    }
+  }
+
+  // 2. CHIỀU VỀ: DE2 (RS232) -> ESP32 -> Laptop C# (Serial)
+  static uint8_t rxBuf[64];
+  static int rxLen = 0;
+
+  while (RS232.available() && rxLen < (int)sizeof(rxBuf)) {
+    rxBuf[rxLen++] = (uint8_t)RS232.read();
+  }
+
+  while (rxLen >= 5) {
+    if (rxBuf[0] != 0x40) {
+      memmove(rxBuf, rxBuf + 1, rxLen - 1);
+      rxLen--;
+      continue;
+    }
+
+    uint8_t type = rxBuf[1];
+    int needLen = 0;
+    if (type == 0x01 || type == 0x03) needLen = 6;
+    else if (type == 0x02 || type == 0x04) needLen = 5;
+    else {
+      memmove(rxBuf, rxBuf + 1, rxLen - 1);
+      rxLen--;
+      continue;
+    }
+
+    if (rxLen < needLen) break;
+
+    bool valid = false;
+    if (type == 0x02) {
+      uint8_t crc = 0x02 ^ rxBuf[2] ^ 0x26;
+      if (rxBuf[3] == 0x26 && rxBuf[4] == crc) {
+        valid = true;
+        applyCommand(rxBuf[2]);
+      }
+    } else if (type == 0x04) {
+      if (rxBuf[4] == 0x26) {
+        valid = true;
+        Serial.write(rxBuf, 5);
+      }
+    } else if (type == 0x01 || type == 0x03) {
+      uint8_t crc = type ^ rxBuf[2] ^ rxBuf[3] ^ 0x26;
+      if (rxBuf[4] == 0x26 && rxBuf[5] == crc) {
+        valid = true;
+        Serial.write(rxBuf, 6);
+      }
+    }
+
+    if (valid) {
+      memmove(rxBuf, rxBuf + needLen, rxLen - needLen);
+      rxLen -= needLen;
+    } else {
+      memmove(rxBuf, rxBuf + 1, rxLen - 1);
+      rxLen--;
+    }
+  }
+}
+
+// ===================================== THUẬT TOÁN LỌC NHỊP TIM CỦA ESP32.INO =====================================
+float beatBpm(float fs) {
+  static float y[BUFFER_LENGTH], z[BUFFER_LENGTH];
+  const uint32_t MIN_BEAT_US = 350000UL;
+  int half = (int)(fs * 0.5f); if (half < 2) half = 2;
+  for (int i = 0; i < BUFFER_LENGTH; i++) {
+    int a = (i - half < 0) ? 0 : i - half;
+    int b = (i + half > BUFFER_LENGTH - 1) ? BUFFER_LENGTH - 1 : i + half;
+    float s = 0; for (int k = a; k <= b; k++) s += irBuffer[k];
+    y[i] = s / (b - a + 1) - (float)irBuffer[i];
+  }
+  z[0] = y[0]; z[BUFFER_LENGTH - 1] = y[BUFFER_LENGTH - 1];
+  for (int i = 1; i < BUFFER_LENGTH - 1; i++) z[i] = (y[i - 1] + y[i] + y[i + 1]) / 3.0f;
+  float hi = 0; for (int i = 0; i < BUFFER_LENGTH; i++) if (z[i] > hi) hi = z[i];
+  if (hi <= 0) return 0;
+  float thr = 0.35f * hi;
+  int pk[BUFFER_LENGTH / 2], np = 0;
+  for (int i = 1; i < BUFFER_LENGTH - 1; i++) {
+    if (z[i] > thr && z[i] > z[i - 1] && z[i] >= z[i + 1]) {
+      if (np > 0 && (uint32_t)(tsBuffer[i] - tsBuffer[pk[np - 1]]) < MIN_BEAT_US) {
+        if (z[i] > z[pk[np - 1]]) pk[np - 1] = i;
+      } else if (np < BUFFER_LENGTH / 2) pk[np++] = i;
+    }
+  }
+  // Ở 25 mẫu/giây, cửa sổ 100 mẫu (4 giây) có từ 2 đỉnh trở lên
+  if (np < 2) return 0;
+  float bpm = 60e6f * (np - 1) / (float)(uint32_t)(tsBuffer[pk[np - 1]] - tsBuffer[pk[0]]);
+  if (bpm < 40.0f || bpm > 200.0f) return 0;
+  return bpm;
+}
+
+// ===================================== SETUP & LOOP =====================================
+void setup() {
+  Serial.begin(UART_BAUD);
+  pinMode(PIN_STATUS_LED, OUTPUT);
+  digitalWrite(PIN_STATUS_LED, LOW);
+  pinMode(PIN_BOOT_BTN, INPUT_PULLUP);
+  delay(500); // Chờ nguồn +3.3V và +1.8V ổn định giống hệt Phi.ino
+
+  RS232.setRxBufferSize(2048);
+  RS232.begin(UART_BAUD, SERIAL_8N1, PIN_U1_RX, PIN_U1_TX);
+  delay(20);
+  while (RS232.available()) RS232.read();
+
+  startWire();
+  delay(50);
+
+  // Quét I2C và khởi tạo MAX30102 giống hệt Phi.ino
+  sensorOk = initSensorPhiStyle();
+  if (sensorOk) {
+    // Nháy LED D1 (IO10) 2 lần báo hiệu cảm biến đã sáng đèn và sẵn sàng
+    for (int i = 0; i < 2; i++) {
+      digitalWrite(PIN_STATUS_LED, HIGH); delay(100);
+      digitalWrite(PIN_STATUS_LED, LOW);  delay(100);
+    }
+  }
+}
+
+void loop() {
+  serviceBridge();
+  // FW-11: Kiểm tra nút BOOT (IO0) giả lập đứt cáp cảm biến HOẶC kiểm tra lỗi I2C thực tế
+  bool faultInjected = (digitalRead(PIN_BOOT_BTN) == LOW);
+  if (faultInjected) {
+    sensorOk = false;
+  }
+  // Nếu cảm biến mất kết nối, gửi mã lỗi 0xFF lên DE2/GUI và tự thử kết nối lại mỗi 500ms (không treo)
+  if (!sensorOk) {
+    static uint32_t lastRetry = 0;
+    if (millis() - lastRetry >= 500) {
+      lastRetry = millis();
+      if (measuring) {
+        sendFrameA(0xFF, 0xFF); // Gửi mã lỗi 0xFF (ERR) lên DE2 và GUI C#
+      }
+      if (!faultInjected) {
+        sensorOk = initSensorPhiStyle(); // Tự động khôi phục khi hết lỗi
+      }
+    }
+    return;
+  }
+
+  if (resetFlag) {
+    resetFlag = false;
+    maxClearFifo();
+    bufCount = 0;
+    newSampleCnt = 0;
+    spo2 = 0;
+    lastSpo2 = 0;
+    heartRate = 0;
+    bpmAvg = 0;
+  }
+
+  if (!measuring) {
+    delay(1);
+    return;
+  }
+
+  // Đọc toàn bộ mẫu đang có trong FIFO theo cơ chế không chặn (Non-blocking) của Phi.ino
+  int n = maxAvailable();
+  if (n == 0 && maxRead8(REG_PART_ID) != 0x15) {
+    // Phát hiện mất phản hồi I2C từ MAX30102 khi đang chạy thật
+    sensorOk = false;
+    sendFrameA(0xFF, 0xFF);
+    return;
+  }
+  for (int k = 0; k < n; k++) {
+    uint32_t red = 0, ir = 0;
+    if (!maxReadSample(red, ir)) break;
+
+    uint32_t nowUs = micros();
+
+     // Có ngón tay: gửi mẫu sóng PPG (Kịch bản C - 0x03)
+    sendFrameC((uint16_t)(ir >> 2));
+    serviceBridge();
+    
+    // Kiểm tra ngón tay: không có ngón tay thì KHÔNG gửi frame C, chỉ gửi A(0,0)
+    if (ir < FINGER_TH) {
+      bufCount = 0;
+      newSampleCnt = 0;
+      bpmAvg = 0;
+      lastSpo2 = 0;
+      static uint32_t lastZeroSend = 0;
+      if (millis() - lastZeroSend >= 100) {
+        lastZeroSend = millis();
+        sendFrameA(0, 0);
+      }
+      continue;
+    }
+
+   
+
+    // Đưa mẫu vào bộ đệm 100 mẫu của thuật toán esp32.ino
+    if (bufCount < BUFFER_LENGTH) {
+      redBuffer[bufCount] = red;
+      irBuffer[bufCount]  = ir;
+      tsBuffer[bufCount]  = nowUs;
+      bufCount++;
+      if (bufCount == BUFFER_LENGTH) {
+        newSampleCnt = 25; // Đủ 100 mẫu đầu tiên -> tính ngay lập tức
+      }
+    } else {
+      // Dịch cửa sổ trượt sang trái 1 mẫu
+      for (byte i = 1; i < BUFFER_LENGTH; i++) {
+        redBuffer[i - 1] = redBuffer[i];
+        irBuffer[i - 1]  = irBuffer[i];
+        tsBuffer[i - 1]  = tsBuffer[i];
+      }
+      redBuffer[BUFFER_LENGTH - 1] = red;
+      irBuffer[BUFFER_LENGTH - 1]  = ir;
+      tsBuffer[BUFFER_LENGTH - 1]  = nowUs;
+      newSampleCnt++;
+    }
+
+    // Cứ mỗi 25 mẫu mới (giống hệt chu kỳ 75..100 của esp32.ino), chạy thuật toán lọc nhịp tim
+    if (bufCount == BUFFER_LENGTH && newSampleCnt >= 25) {
+      newSampleCnt = 0;
+
+      maxim_heart_rate_and_oxygen_saturation(irBuffer, BUFFER_LENGTH, redBuffer,
+                                             &spo2, &validSPO2, &heartRate, &validHeartRate);
+      serviceBridge();
+
+      // 1. Thuật toán lọc nhịp tim beatBpm(fs) + làm mượt bpmAvg của esp32.ino
+      float fs  = (BUFFER_LENGTH - 1) * 1e6f / (float)(uint32_t)(tsBuffer[BUFFER_LENGTH - 1] - tsBuffer[0]);
+      float bpm = beatBpm(fs);
+      if (bpm > 0) {
+        bpmAvg = (bpmAvg == 0) ? bpm : 0.7f * bpmAvg + 0.3f * bpm;
+      } else if (validHeartRate && heartRate >= 40 && heartRate <= 200) {
+        bpmAvg = (bpmAvg == 0) ? (float)heartRate : 0.7f * bpmAvg + 0.3f * (float)heartRate;
+      }
+
+      // 2. SpO2 lấy hoàn toàn từ thư viện Maxim; không hợp lệ thì giữ giá trị hợp lệ gần nhất
+      if (validSPO2 && spo2 >= 70 && spo2 <= 100) lastSpo2 = spo2;
+
+      uint8_t hrOut   = (uint8_t)constrain((int)(bpmAvg + 0.5f), 0, 255);
+      uint8_t spo2Out = (hrOut > 0) ? (uint8_t)constrain(lastSpo2, 0, 100) : 0;
+
+      sendFrameA(hrOut, spo2Out);
+      serviceBridge();
+    }
+  }
+}

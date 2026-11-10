@@ -14,7 +14,7 @@ module frame_decoder(
 );
     localparam WAIT_HEADER=0, WAIT_TYPE=1, WAIT_DATA1=2, WAIT_DATA2=3, WAIT_FOOTER=4, WAIT_CRC=5;
     reg [2:0] state;
-    reg [7:0] type_reg, data1_reg, data2_reg;
+    reg [7:0] type_reg, data1_reg, data2_reg; //tạm thời lưu trữ các byte nhận được từ UART để ghép thành dữ liệu hoàn chỉnh (HR/SpO2 hoặc PPG)
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -33,7 +33,7 @@ module frame_decoder(
                     WAIT_TYPE:   begin
                         type_reg <= byte_in;
                         // 0x01 = kết quả (A), 0x03 = raw PPG (C): cùng cấu trúc 2 byte data
-                        state <= (byte_in == 8'h01 || byte_in == 8'h03) ? WAIT_DATA1 : WAIT_HEADER;
+                        state <= (byte_in == 8'h01 || byte_in == 8'h03) ? WAIT_DATA1 : ((byte_in == 8'h40) ? WAIT_TYPE : WAIT_HEADER);
                     end
                     WAIT_DATA1:  begin data1_reg <= byte_in; state <= WAIT_DATA2; end
                     WAIT_DATA2:  begin data2_reg <= byte_in; state <= WAIT_FOOTER; end
