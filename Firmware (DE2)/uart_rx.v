@@ -1,21 +1,21 @@
 module uart_rx #(
     parameter CLK_FREQ    = 50_000_000,
     parameter BAUD_RATE   = 9600,
-    parameter DATA_BITS   = 8, // Hỗ trợ cấu hình 7 hoặc 8 bit (FW-07) 8N1
-    parameter PARITY_MODE = 0  // 0: None, 1: Even (Chẵn), 2: Odd (Lẻ) (FW-07, FW-09)
+    parameter DATA_BITS   = 8, // Hỗ trợ cấu hình 7 hoặc 8 bit  8N1
+    parameter PARITY_MODE = 0  // 0: None, 1: Even (Chẵn), 2: Odd (Lẻ)
 )(
     input            clk,
     input            rst_n,
     input            rx,
     output reg [7:0] data_out, 
     output reg       data_valid,
-    output reg       framing_error, // Báo lỗi Stop bit != 1 (FW-08, FW-09)
-    output reg       parity_error   // Báo lỗi bit chẵn lẻ (FW-09)
+    output reg       framing_error, // Báo lỗi Stop bit != 1 
+    output reg       parity_error   // Báo lỗi bit chẵn lẻ 
 );
-    localparam BIT_PERIOD = CLK_FREQ / BAUD_RATE; // Số chu kỳ clock cho 1 bit UART, Với 50MHz và 9600bps, BIT_PERIOD = 5208 chu kỳ
+    localparam BIT_PERIOD = CLK_FREQ / BAUD_RATE; // Số chu kỳ clock cho 1 bit UART, BIT_PERIOD = 5208 chu kỳ clk = 104us. Tương tự, 1 bit UART = 1/9600 = 104us.
     localparam IDLE=3'd0, START=3'd1, DATA=3'd2, PARITY=3'd3, STOP=3'd4; // Trạng thái FSM: IDLE, START, DATA, PARITY, STOP
 
-    reg rx_sync1, rx_sync2; // Đồng bộ tín hiệu rx với clock hệ thống để tránh metastability (FW-08)
+    reg rx_sync1, rx_sync2; // Đồng bộ tín hiệu rx với clock hệ thống để tránh bất đồng bộ 
     /*
     Mạch chống Meta-stability (Bất ổn định mức logic): 
     Đây là kỹ thuật dùng 2 thanh ghi dịch (Flip-Flop) nối tiếp nhau. 
@@ -37,9 +37,9 @@ module uart_rx #(
     reg [15:0] clk_cnt; // Bộ đếm clock để xác định thời gian mỗi bit UART
     reg [2:0]  bit_idx; // Chỉ số bit dữ liệu đang nhận (0 đến 7 cho 8 bit dữ liệu)
     reg [7:0]  shift_reg; // Thanh ghi dịch để lưu trữ dữ liệu nhận được từ UART,làm nhiệm vụ gom từng bit đơn lẻ nối tiếp thành 1 byte song song.
-    reg        rx_parity_bit; // Lưu trữ bit chẵn lẻ nhận được từ UART để kiểm tra lỗi (FW-09)
+    reg        rx_parity_bit; // Lưu trữ bit chẵn lẻ nhận được từ UART để kiểm tra lỗi 
     //Phép toán XOR (^shift_reg) tự động tính trước bit chẵn/lẻ dự kiến của byte vừa nhận để so sánh với bit parity thực tế (rx_parity_bit) nhằm tìm ra lỗi truyền tải.
-    wire calc_parity = (PARITY_MODE == 1) ? (^shift_reg) : ~(^shift_reg); // Tính toán bit chẵn lẻ dựa trên dữ liệu nhận được (FW-09)
+    wire calc_parity = (PARITY_MODE == 1) ? (^shift_reg) : ~(^shift_reg); // Tính toán bit chẵn lẻ dựa trên dữ liệu nhận được 
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -52,10 +52,10 @@ module uart_rx #(
             case (state)
                 IDLE: begin
                     clk_cnt <= 0;
-                    if (rx_sync2 == 1'b0) state <= START; // Phát hiện cạnh xuống Start bit (FW-08)
+                    if (rx_sync2 == 1'b0) state <= START; // Phát hiện cạnh xuống Start bit 
                 end
                 START: begin
-                    if (clk_cnt == BIT_PERIOD/2) begin    // Kiểm tra lại giữa chu ky Start bit (FW-08)
+                    if (clk_cnt == BIT_PERIOD/2) begin    // Kiểm tra lại giữa chu ky Start bit 
                         clk_cnt <= 0;
                         state   <= (rx_sync2 == 1'b0) ? DATA : IDLE;
                         bit_idx <= 0;
@@ -72,7 +72,7 @@ module uart_rx #(
                     end else clk_cnt <= clk_cnt + 1; 
                 end
                 PARITY: begin //hien tai ko dung
-                    if (clk_cnt == BIT_PERIOD - 1) begin
+                    if (clk_cnt == BIT_PERIOD - 1) begin 
                         clk_cnt <= 0;
                         rx_parity_bit <= rx_sync2;
                         state <= STOP;

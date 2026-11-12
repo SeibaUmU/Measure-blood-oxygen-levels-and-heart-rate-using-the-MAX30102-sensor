@@ -18,7 +18,7 @@ bool wireStarted = false;
 bool sensorOk = false;
 
 // ===================================== THANH GHI MAX30102  =====================================
-static const uint8_t MAX_ADDR = 0x57;
+static const uint8_t MAX_ADDR = 0x57; // Địa chỉ I2C của MAX30102 (7-bit)
 static const uint8_t REG_INTR_EN1 = 0x02;
 static const uint8_t REG_INTR_EN2 = 0x03;
 static const uint8_t REG_FIFO_WR = 0x04;
@@ -44,8 +44,8 @@ uint32_t tsBuffer[BUFFER_LENGTH];  // micros() lúc nhận từng mẫu, để t
 int bufCount = 0;                  // Số mẫu hiện có trong buffer (0..100)
 int newSampleCnt = 0;              // Đếm đủ 25 mẫu mới thì tính lại BPM/SpO2
 
-float bpmAvg = 0; // Nhịp tim đã làm mượt
-int32_t spo2 = 0;
+float bpmAvg = 0;     // Nhịp tim đã làm mượt
+int32_t spo2 = 0;     // int32_t 32 bit co dau
 int8_t validSPO2 = 0; // 1 = SpO2 hợp lệ, 0 = không hợp lệ
 int32_t heartRate = 0;
 int8_t validHeartRate = 0;
@@ -54,15 +54,16 @@ int32_t lastSpo2 = 0; // SpO2 hợp lệ gần nhất từ thư viện Maxim (0 
 
 bool measuring = false; // false = chờ lệnh Start ('1') từ DE2
 bool resetFlag = false;
-
+bool oneShot = false; // true = đo 1 lần (FW-12)
+uint32_t oneShotStart = 0;
 // ===================================== DRIVER MAX30102 =====================================
-void startWire()
+void startWire() // Khởi tạo I2C (Wire) với tốc độ 400kHz
 {
   Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL, 400000);
   wireStarted = true;
 }
 
-bool maxWrite(uint8_t reg, uint8_t val)
+bool maxWrite(uint8_t reg, uint8_t val) // hàm ghi 1 byte val vào thanh ghi reg của MAX30102 qua I2C, trả về true nếu thành công
 {
   Wire.beginTransmission(MAX_ADDR);
   Wire.write(reg);
@@ -70,7 +71,7 @@ bool maxWrite(uint8_t reg, uint8_t val)
   return Wire.endTransmission() == 0;
 }
 
-bool maxRead(uint8_t reg, uint8_t *buf, uint8_t len)
+bool maxRead(uint8_t reg, uint8_t *buf, uint8_t len) // hàm đọc len byte từ thanh ghi reg của MAX30102 qua I2C, lưu vào buf, trả về true nếu thành công
 {
   Wire.beginTransmission(MAX_ADDR);
   Wire.write(reg);
@@ -84,7 +85,7 @@ bool maxRead(uint8_t reg, uint8_t *buf, uint8_t len)
   return true;
 }
 
-int maxRead8(uint8_t reg)
+int maxRead8(uint8_t reg) // hàm đọc 1 byte từ thanh ghi reg của MAX30102 qua I2C, trả về giá trị byte đó hoặc -1 nếu lỗi
 {
   uint8_t v;
   return maxRead(reg, &v, 1) ? v : -1;
@@ -97,10 +98,10 @@ void maxClearFifo()
   maxWrite(REG_FIFO_RD, 0);
 }
 
-bool maxInit()
+bool maxInit() // khởi tạo MAX30102, trả về true nếu thành công
 {
-  if (!maxWrite(REG_MODE_CFG, 0x40))
-    return false; // soft reset
+  if (!maxWrite(REG_MODE_CFG, 0x40)) // 0x40 = soft reset
+    return false;                    // soft reset
   uint32_t t = millis();
   while (millis() - t < 100)
   {
@@ -210,10 +211,14 @@ void applyCommand(uint8_t cmd)
     resetFlag = true;
   }
   else if (cmd == 'S')
-  {                                                                   // 0x53: Đọc 1 lần (FW-12)
-    uint8_t hrOut = (uint8_t)constrain((int)(bpmAvg + 0.5f), 0, 255); //+0.5f lam tron, ep kieu sang int de trong constrain dam bao trong khoang 0..255
-    uint8_t spo2Out = (hrOut > 0) ? (uint8_t)constrain(lastSpo2, 0, 100) : 0;
-    sendFrameA(hrOut, spo2Out);
+  { // 0x53: Đọc 1 lần (FW-12)
+    if (!measuring)
+    { // đang Start liên tục thì bỏ qua
+      measuring = true;
+      resetFlag = true; // xóa FIFO + buffer, bpmAvg = 0
+      oneShot = true;
+      oneShotStart = millis();
+    }
   }
 }
 
@@ -468,6 +473,11 @@ void loop()
       if (measuring)
       {
         sendFrameA(0xFF, 0xFF); // Gửi mã lỗi 0xFF (ERR) lên GUI C#
+        if (oneShot)
+        {
+          oneShot = false;
+          measuring = false;
+        } // báo lỗi 1 lần rồi dừng
       }
       if (!faultInjected)
       {
@@ -488,7 +498,11 @@ void loop()
     heartRate = 0;
     bpmAvg = 0;
   }
-
+  if (oneShot && millis() - oneShotStart > 15000)
+  {
+    oneShot = false;
+    measuring = false; // không có ngón tay / không ra kết quả
+  }
   if (!measuring)
   {
     delay(1);
@@ -511,7 +525,7 @@ void loop()
       break;
     uint32_t nowUs = micros();
 
-    // Có ngón tay: gửi mẫu sóng PPG (Kịch bản C - 0x03)
+    // gửi mẫu sóng PPG (Kịch bản C - 0x03)
     sendFrameC((uint16_t)(ir >> 2));
     serviceBridge();
 
@@ -589,6 +603,12 @@ void loop()
 
       sendFrameA(hrOut, spo2Out);
       serviceBridge();
+      if (oneShot && hrOut > 0 && spo2Out > 0)
+      { // có kết quả đầu tiên
+        oneShot = false;
+        measuring = false;
+        break; // thoát vòng for đọc mẫu
+      }
     }
   }
 }

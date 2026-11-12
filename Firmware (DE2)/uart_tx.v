@@ -25,7 +25,7 @@ module uart_tx #(
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state   <= IDLE;
-            tx_pin  <= 1'b1;
+            tx_pin  <= 1'b1; 
             clk_cnt <= 0;
             bit_idx <= 0;
             shift_reg <= 0;

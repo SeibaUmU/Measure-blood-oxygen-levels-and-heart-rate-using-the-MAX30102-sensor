@@ -74,7 +74,7 @@ module Max30102_ESP32_DE2(
         end
     end
     // Start ('1') hoặc Reset ('R') thì xóa HR/SpO2 cũ trên DE2
-    assign clr_vals = cmd_valid && (cmd_code == 8'h31 || cmd_code == 8'h52); //Tạo xung xóa số liệu cũ trên LED 7 đoạn nếu nhận được lệnh
+    assign clr_vals = cmd_valid && (cmd_code == 8'h31 || cmd_code == 8'h52 || cmd_code == 8'h53); //Tạo xung xóa số liệu cũ trên LED 7 đoạn nếu nhận được lệnh
 
     // =====================================================================
     // 4. KHỐI TEST MODE (Frame type 0x04 từ GUI)
@@ -106,7 +106,7 @@ module Max30102_ESP32_DE2(
                     4: begin
                             if (rx_byte == 8'h26) begin // Footer '&'
                                 if ((test_byte1 == 8'h84 && test_byte2 == 8'h83) ||
-                                    (test_byte1 == 8'h54 && test_byte2 == 8'h53)) //Nhận 0x84 0x83 (T S): Bật chế độ Test
+                                    (test_byte1 == 8'h54 && test_byte2 == 8'h53)) //Nhận 0x84 0x83 (T S) hoặc 0x54 0x53 (T S): Bật chế độ Test
                                     test_mode_active <= 1;
                                 else if ((test_byte1 == 8'h84 && test_byte2 == 8'h69) ||
                                             (test_byte1 == 8'h54 && test_byte2 == 8'h45)) //Nhận 0x84 0x69 (T E): Tắt chế độ Test
@@ -147,7 +147,8 @@ module Max30102_ESP32_DE2(
     reg [2:0]  idx; // Chỉ số byte đang phát (0..5)
     reg [1:0]  tx_st; // FSM phát từng byte ra UART_TXD: 0=chờ phát, 1=phát byte, 2=chờ busy, 3=chờ xong
     reg [7:0]  cur_byte; // byte hiện tại đang phát ra UART_TXD
-
+    reg        wait_s;               // đang chờ kết quả đo 1 lần
+    reg [29:0] s_timer;              // timeout phía DE2
     wire [7:0] f_crc_ac  = f_type ^ f_d1 ^ f_d2 ^ 8'h26; // CRC cho frame 6 byte (0x01, 0x03)
     wire [7:0] f_crc_b   = 8'h02  ^ f_d1 ^ 8'h26;        // CRC cho frame 5 byte lệnh B (0x02)
     wire       last_byte = (f_type == 8'h02 || f_type == 8'h04) ? (idx == 3'd4) : (idx == 3'd5); // Cờ chỉ ra byte cuối cùng trong frame
@@ -181,13 +182,12 @@ module Max30102_ESP32_DE2(
             pend_b <= 0; pend_a <= 0; pend_c <= 0; pend_t <= 0;
             b_cmd <= 0; c_hi <= 0; c_lo <= 0;
             f_type <= 0; f_d1 <= 0; f_d2 <= 0;
+            wait_s <= 0; s_timer <= 0;
         end else begin
             com_req <= 0;
 
             // --- Ghi nhận yêu cầu phát ---
-            if (cmd_valid && cmd_code == 8'h53) begin
-                    pend_a <= 1; // Lệnh 'S' (0x53): Đọc 1 lần kết quả HR/SpO2 gửi lên GUI (FW-12)
-                end
+            
             if (cmd_valid) begin
                 b_cmd  <= cmd_code;
                 pend_b <= 1; // Ưu tiên phát lệnh B xuống ESP32
@@ -204,7 +204,19 @@ module Max30102_ESP32_DE2(
                 pend_a  <= 0;
                 pend_c  <= 0;
             end
-
+            // --- Lệnh 'S': đo 1 lần, chờ ESP32 trả kết quả hợp lệ rồi đẩy lên GUI ---
+            if (cmd_valid && cmd_code == 8'h53 && !running) begin
+                wait_s  <= 1;
+                s_timer <= 0;
+            end else if (wait_s) begin
+                if (new_data && hr_value != 0 && spo2_value != 0) begin
+                    wait_s <= 0;
+                    pend_a <= 1;                       // hr/spo2 đã là giá trị mới
+                end else if (s_timer == 900_000_000) begin   // 18 s > 15 s của ESP32
+                    wait_s <= 0;
+                    pend_a <= 1;                       // gửi 0,0 (đã bị xóa bởi clr_vals)
+                end else s_timer <= s_timer + 1;
+            end
             // --- FSM phát từng byte ra UART_TXD ---
             case (tx_st)
                 //case 0: mach ranh roi
