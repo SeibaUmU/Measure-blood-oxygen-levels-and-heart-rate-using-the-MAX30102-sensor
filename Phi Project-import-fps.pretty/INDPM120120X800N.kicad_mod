@@ -1,0 +1,171 @@
+(footprint "INDPM120120X800N"
+	(version 20260206)
+	(generator "pcbnew")
+	(generator_version "10.0")
+	(layer "F.Cu")
+	(property "Reference" "REF**"
+		(at -2.188029 -9.420098 0)
+		(unlocked yes)
+		(layer "F.SilkS")
+		(hide yes)
+		(uuid "efa10e72-2a77-4772-96c1-5383d5ba2cb9")
+		(effects
+			(font
+				(size 1.524 1.524)
+				(thickness 0.254)
+			)
+		)
+	)
+	(property "Value" "22uH"
+		(at -0.705757 14.976602 0)
+		(unlocked yes)
+		(layer "F.SilkS")
+		(hide yes)
+		(uuid "2685c001-5116-45bd-8a6c-12376af83918")
+		(effects
+			(font
+				(size 1.524 1.524)
+				(thickness 0.254)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "b2f3dfb8-7db3-4750-aa66-f44c45dce9b7")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "31ac0703-87d2-463b-8cd6-4058b0b70276")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(sheetname "Phi Sensor Schematic")
+	(sheetfile "Phi Sensor Schematic.kicad_sch")
+	(attr smd)
+	(duplicate_pad_numbers_are_jumpers no)
+	(fp_line
+		(start -6 -6)
+		(end 6 -6)
+		(stroke
+			(width 0.2)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "ce30d5bf-f4fb-43d8-b4d1-bb6a9a913912")
+	)
+	(fp_line
+		(start -6 6)
+		(end 6 6)
+		(stroke
+			(width 0.2)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "b67a0823-8af3-4183-8403-d67f906fafff")
+	)
+	(fp_line
+		(start -6.9 -6.4)
+		(end 6.9 -6.4)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "User.13")
+		(uuid "4c43fab0-b815-4206-a030-2b3c13b92617")
+	)
+	(fp_line
+		(start -6.9 6.4)
+		(end -6.9 -6.4)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "User.13")
+		(uuid "b87e9d07-442b-4ac6-b79e-5cf00ecd82f3")
+	)
+	(fp_line
+		(start -6.9 6.4)
+		(end 6.9 6.4)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "User.13")
+		(uuid "fa0837aa-a0f4-4f85-acf0-255fb72d153b")
+	)
+	(fp_line
+		(start -6 -6)
+		(end 6 -6)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "User.13")
+		(uuid "9bf58f38-0893-4332-8c2a-e3a979a61089")
+	)
+	(fp_line
+		(start -6 6)
+		(end -6 -6)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "User.13")
+		(uuid "6c2b329e-d3a2-4569-bfb3-33c611c85b39")
+	)
+	(fp_line
+		(start -6 6)
+		(end 6 6)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "User.13")
+		(uuid "a99f7a91-74ca-42e1-a6c4-617e9181300a")
+	)
+	(fp_line
+		(start 6 6)
+		(end 6 -6)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "User.13")
+		(uuid "bdcb4b83-1cda-4727-a6e8-69040aa067e6")
+	)
+	(fp_line
+		(start 6.9 6.4)
+		(end 6.9 -6.4)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "User.13")
+		(uuid "cd218d74-4045-4cb9-af89-2c07def3ee1e")
+	)
+	(pad "1" smd rect
+		(at -5.05 0)
+		(size 3.2 5.1)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "6256ec66-752d-45d2-88dc-8d372e0a14ee")
+	)
+	(pad "2" smd rect
+		(at 5.05 0)
+		(size 3.2 5.1)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "0343b3d9-3cec-4448-ae09-4e3c8df1525e")
+	)
+	(embedded_fonts no)
+)
