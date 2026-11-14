@@ -10,8 +10,8 @@ namespace MAX30102_WPF.Communication
     {
         public string PortName { get; set; }
         public int BaudRate { get; set; } = 9600;
-        public int DataBits { get; set; } = 8;
-        public Parity Parity { get; set; } = Parity.None;
-        public StopBits StopBits { get; set; } = StopBits.One;
+        public int DataBits { get; set; } = 8; // 8 bit dữ liệu
+        public Parity Parity { get; set; } = Parity.None; // Không kiểm tra chẵn lẽ
+        public StopBits StopBits { get; set; } = StopBits.One; //
     }
 }

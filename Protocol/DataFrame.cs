@@ -85,7 +85,7 @@ namespace MAX30102_WPF.Protocol
         public static DataFrame Command(byte[] payload)
         {
             int n = payload.Length;
-            byte[] frame = new byte[4 + n];
+            byte[] frame = new byte[4 + n]; // 4 = Header + Type + Footer + CRC
             frame[0] = ProtocolConst.Header;
             frame[1] = ProtocolConst.TypeCommand;
             Array.Copy(payload, 0, frame, 2, n);
